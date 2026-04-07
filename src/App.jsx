@@ -545,20 +545,25 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
 
 useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-  if (session?.user) { setUser(session.user); setScreen("app"); }
-  else {
-    const hash = window.location.hash;
-    if (hash && hash.includes("access_token")) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) { setUser(session.user); setScreen("app"); }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        setUser(session.user);
+        setScreen("app");
         setAuthChecked(true);
-      });
-    } else {
-      setAuthChecked(true);
-    }
-  }
-});
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+        setScreen("welcome");
+        setAuthChecked(true);
+      } else if (event === "INITIAL_SESSION") {
+        if (session?.user) {
+          setUser(session.user);
+          setScreen("app");
+        }
+        setAuthChecked(true);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
     supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user);
