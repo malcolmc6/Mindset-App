@@ -40,11 +40,10 @@ const TONES = [
 
 const MUSIC_MOODS = [
   { id: "none", label: "No Music", icon: "🔇", url: null },
-  { id: "ambient", label: "Ambient", icon: "🌊", url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_8cb749d041.mp3" },
-  { id: "nature", label: "Nature Sounds", icon: "🌿", url: "https://cdn.pixabay.com/download/audio/2021/09/06/audio_e521341fce.mp3" },
-  { id: "focus", label: "Deep Focus", icon: "🎯", url: "https://cdn.pixabay.com/download/audio/2023/03/09/audio_2e5a3c4b71.mp3" },
+  { id: "ambient", label: "Ambient", icon: "🌊", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { id: "nature", label: "Nature Sounds", icon: "🌿", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { id: "focus", label: "Deep Focus", icon: "🎯", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
 ];
-
 const VOICE_OPTIONS = {
   coach: { id: "pNInz6obpgDQGcFmaJgB", name: "Adam" },
   guide: { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
