@@ -41,19 +41,21 @@ const MUSIC_MOODS = [
   { id: "focus", label: "Deep Focus", icon: "🎯", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
 ];
 
-const VOICE_OPTIONS = {
-  coach: { id: "pNInz6obpgDQGcFmaJgB" },
-  guide: { id: "21m00Tcm4TlvDq8ikWAM" },
-  athlete: { id: "ErXwobaYiN019PkySvjV" },
-};
-
 const VOICE_STYLES = [
   { id: "coach", label: "Coach", desc: "Direct & motivating" },
   { id: "guide", label: "Guide", desc: "Soft & grounding" },
   { id: "athlete", label: "Athlete POV", desc: "First-person" },
 ];
 
-const STEPS = ["Sport", "Event", "Focus", "Vibe", "Generate"];
+const NAV_ITEMS = [
+  { id: "generate", icon: "✦", label: "New Session" },
+  { id: "sessions", icon: "▶", label: "My Sessions" },
+  { id: "playlists", icon: "≡", label: "Playlists" },
+  { id: "teams", icon: "◈", label: "My Teams" },
+  { id: "explore", icon: "◎", label: "Explore" },
+];
+
+const SPORTS_NAV = Object.entries(SPORTS).map(([key, s]) => ({ id: key, label: s.label, icon: s.icon }));
 
 function buildPrompt({ sport, event, focusAreas, tone, voiceStyle, athleteName, personalNotes, sportData }) {
   const toneMap = {
@@ -85,140 +87,81 @@ Write a 300-400 word guided visualization script. Structure it in 3 phases:
 Do NOT use headers or labels. Just flowing prose meant to be read aloud.`;
 }
 
-function VisualizationPlayer({ script, tone, voiceStyle, music, athleteName, onRestart }) {
-  const [phase, setPhase] = useState("ready");
-  const [audioError, setAudioError] = useState("");
+// ── NOW PLAYING BAR ──
+function NowPlayingBar({ session, onClose }) {
   const [isPaused, setIsPaused] = useState(false);
-  const [voiceVolume, setVoiceVolume] = useState(0.9);
-  const [musicVolume, setMusicVolume] = useState(0.3);
   const [progress, setProgress] = useState(0);
-  const voiceAudioRef = useRef(null);
-  const musicAudioRef = useRef(null);
-  const toneData = TONES.find(t => t.id === tone);
-  const musicData = MUSIC_MOODS.find(m => m.id === music);
+  const [musicVolume, setMusicVolume] = useState(0.3);
+  const voiceRef = useRef(null);
+  const musicRef = useRef(null);
+  const toneData = TONES.find(t => t.id === session.tone) || TONES[0];
+  const musicData = MUSIC_MOODS.find(m => m.id === session.music);
 
   const startMusic = () => {
     if (!musicData?.url) return;
     const audio = new Audio(musicData.url);
     audio.loop = true; audio.volume = musicVolume;
     audio.play().catch(() => {});
-    musicAudioRef.current = audio;
+    musicRef.current = audio;
   };
-  const stopMusic = () => { if (musicAudioRef.current) { musicAudioRef.current.pause(); musicAudioRef.current = null; } };
-  useEffect(() => { if (musicAudioRef.current) musicAudioRef.current.volume = musicVolume; }, [musicVolume]);
-  useEffect(() => { if (voiceAudioRef.current) voiceAudioRef.current.volume = voiceVolume; }, [voiceVolume]);
+  const stopMusic = () => { if (musicRef.current) { musicRef.current.pause(); musicRef.current = null; } };
 
-  const startSession = () => {
-    setAudioError("");
-    if (!window.speechSynthesis) {
-      setAudioError("Your browser doesn't support voice. Try Chrome or Safari.");
-      return;
-    }
+  useEffect(() => {
+    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(script);
+    const utterance = new SpeechSynthesisUtterance(session.script);
     const voices = window.speechSynthesis.getVoices();
-    const maleVoice = voices.find(v => v.lang.startsWith("en") && (v.name.includes("Daniel") || v.name.includes("Alex") || v.name.includes("Tom") || v.name.includes("Fred")));
-    const femaleVoice = voices.find(v => v.lang.startsWith("en") && (v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Victoria")));
-    const defaultVoice = voices.find(v => v.lang === "en-US") || voices[0];
-    const voicePick = { coach: maleVoice, guide: femaleVoice, athlete: maleVoice };
-    const selectedVoice = voicePick[voiceStyle] || defaultVoice;
-    if (selectedVoice) utterance.voice = selectedVoice;
+    const voice = voices.find(v => v.lang.startsWith("en")) || voices[0];
+    if (voice) utterance.voice = voice;
     const toneSettings = { calm: { rate: 0.82, pitch: 0.95 }, fired: { rate: 1.05, pitch: 1.1 }, confident: { rate: 0.88, pitch: 1.0 }, flow: { rate: 0.78, pitch: 0.9 } };
-    const settings = toneSettings[tone] || { rate: 0.85, pitch: 1.0 };
-    utterance.rate = settings.rate;
-    utterance.pitch = settings.pitch;
-    utterance.volume = voiceVolume;
-    let wordCount = 0;
-    const totalWords = script.split(" ").length;
-    utterance.onboundary = (e) => { if (e.name === "word") { wordCount++; setProgress((wordCount / totalWords) * 100); } };
-    utterance.onend = () => { setPhase("done"); setProgress(100); stopMusic(); };
-    utterance.onerror = () => { setAudioError("Voice error. Please try again."); setPhase("ready"); stopMusic(); };
-    voiceAudioRef.current = utterance;
-    setPhase("playing");
+    const s = toneSettings[session.tone] || { rate: 0.85, pitch: 1.0 };
+    utterance.rate = s.rate; utterance.pitch = s.pitch; utterance.volume = 0.9;
+    let wc = 0; const total = session.script.split(" ").length;
+    utterance.onboundary = (e) => { if (e.name === "word") { wc++; setProgress((wc / total) * 100); } };
+    utterance.onend = () => { setProgress(100); stopMusic(); };
+    voiceRef.current = utterance;
     startMusic();
     window.speechSynthesis.speak(utterance);
-  };
+    return () => { window.speechSynthesis.cancel(); stopMusic(); };
+  }, [session]);
+
+  useEffect(() => { if (musicRef.current) musicRef.current.volume = musicVolume; }, [musicVolume]);
 
   const togglePause = () => {
-    if (isPaused) { window.speechSynthesis.resume(); if (musicAudioRef.current) musicAudioRef.current.play(); }
-    else { window.speechSynthesis.pause(); if (musicAudioRef.current) musicAudioRef.current.pause(); }
+    if (isPaused) { window.speechSynthesis.resume(); if (musicRef.current) musicRef.current.play(); }
+    else { window.speechSynthesis.pause(); if (musicRef.current) musicRef.current.pause(); }
     setIsPaused(!isPaused);
   };
 
-  const endSession = () => { window.speechSynthesis.cancel(); stopMusic(); setPhase("done"); setProgress(100); };
-  const replay = () => { window.speechSynthesis.cancel(); setPhase("ready"); setProgress(0); setIsPaused(false); voiceAudioRef.current = null; };
-  useEffect(() => () => { window.speechSynthesis.cancel(); stopMusic(); }, []);
+  const handleClose = () => { window.speechSynthesis.cancel(); stopMusic(); onClose(); };
 
   return (
-    <div className="player-wrap" style={{ "--tone-color": toneData.color, "--tone-bg": toneData.bg }}>
-      <div className="player-bg" />
-      {phase === "ready" && (
-        <div className="player-center">
-          <div className="player-glyph">◎</div>
-          <h2 className="player-title">READY{athleteName ? `, ${athleteName.toUpperCase()}` : ""}?</h2>
-          <p className="player-sub">Find a quiet space. Press play, close your eyes, and let the voice guide you.</p>
-          {audioError && <p className="audio-error">{audioError}</p>}
-          <div className="vol-controls">
-            <div className="vol-row">
-              <span className="vol-label">VOICE</span>
-              <input type="range" min="0" max="1" step="0.05" value={voiceVolume} onChange={e => setVoiceVolume(parseFloat(e.target.value))} className="vol-slider" />
-              <span className="vol-pct">{Math.round(voiceVolume * 100)}%</span>
-            </div>
-            {music !== "none" && (
-              <div className="vol-row">
-                <span className="vol-label">MUSIC</span>
-                <input type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={e => setMusicVolume(parseFloat(e.target.value))} className="vol-slider" />
-                <span className="vol-pct">{Math.round(musicVolume * 100)}%</span>
-              </div>
-            )}
-          </div>
-          <button className="begin-btn" onClick={startSession}>▶ BEGIN SESSION</button>
-        </div>
-      )}
-
-      {phase === "playing" && (
-        <div className="player-center">
-          <div className="progress-bar"><div className="progress-fill" style={{ width: `${progress}%` }} /></div>
-          <div className="wave-wrap">
-            {[...Array(7)].map((_, i) => <div key={i} className={`wave-bar ${isPaused ? "paused" : ""}`} style={{ animationDelay: `${i * 0.12}s` }} />)}
-          </div>
-          <p className="playing-status">{isPaused ? "PAUSED" : "PLAYING"}</p>
-          <div className="script-box"><p>{script.slice(0, 200)}...</p></div>
-          <div className="vol-controls" style={{ width: "100%", maxWidth: 380 }}>
-            <div className="vol-row">
-              <span className="vol-label">VOICE</span>
-              <input type="range" min="0" max="1" step="0.05" value={voiceVolume} onChange={e => setVoiceVolume(parseFloat(e.target.value))} className="vol-slider" />
-            </div>
-            {music !== "none" && (
-              <div className="vol-row">
-                <span className="vol-label">MUSIC</span>
-                <input type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={e => setMusicVolume(parseFloat(e.target.value))} className="vol-slider" />
-              </div>
-            )}
-          </div>
-          <div className="playback-btns">
-            <button className="pause-btn" onClick={togglePause}>{isPaused ? "▶ RESUME" : "⏸ PAUSE"}</button>
-            <button className="end-btn" onClick={endSession}>■ END</button>
+    <div className="now-playing-bar" style={{ "--tone-color": toneData.color }}>
+      <div className="np-progress"><div className="np-progress-fill" style={{ width: `${progress}%` }} /></div>
+      <div className="np-content">
+        <div className="np-left">
+          <div className="np-icon">{SPORTS[session.sport]?.icon || "◎"}</div>
+          <div className="np-info">
+            <div className="np-title">{session.sport ? SPORTS[session.sport].label : "Visualization"} — {session.event}</div>
+            <div className="np-sub" style={{ color: toneData.color }}>{TONES.find(t => t.id === session.tone)?.label}</div>
           </div>
         </div>
-      )}
-      {phase === "done" && (
-        <div className="player-center">
-          <div className="player-glyph" style={{ color: toneData.color }}>✦</div>
-          <h2 className="player-title">SESSION COMPLETE</h2>
-          <p className="player-sub">Take a breath. Carry that feeling into your performance.</p>
-          <div className="script-box done-script"><p>{script}</p></div>
-          <div className="done-btns">
-            <button className="begin-btn" onClick={replay}>↺ REPLAY</button>
-            <button className="outline-btn" onClick={onRestart}>NEW SESSION</button>
-          </div>
+        <div className="np-controls">
+          <button className="np-btn" onClick={togglePause}>{isPaused ? "▶" : "⏸"}</button>
+          <button className="np-btn np-stop" onClick={handleClose}>■</button>
         </div>
-      )}
+        <div className="np-right">
+          <span className="np-vol-label">🎵</span>
+          <input type="range" min="0" max="1" step="0.05" value={musicVolume}
+            onChange={e => setMusicVolume(parseFloat(e.target.value))} className="np-vol-slider" />
+        </div>
+      </div>
     </div>
   );
 }
 
-export default function App() {
+// ── GENERATE VIEW ──
+function GenerateView({ onSessionStart }) {
   const [step, setStep] = useState(0);
   const [sport, setSport] = useState("");
   const [event, setEvent] = useState("");
@@ -228,37 +171,15 @@ export default function App() {
   const [music, setMusic] = useState("");
   const [athleteName, setAthleteName] = useState("");
   const [personalNotes, setPersonalNotes] = useState("");
-  const [script, setScript] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [screen, setScreen] = useState("setup");
 
   const sportData = sport ? SPORTS[sport] : null;
+  const STEPS = ["Sport", "Event", "Focus", "Vibe", "Generate"];
 
   const toggleFocus = (fa) => {
     if (focusAreas.includes(fa)) setFocusAreas(f => f.filter(x => x !== fa));
     else if (focusAreas.length < 3) setFocusAreas(f => [...f, fa]);
-  };
-
-  const generateScript = async () => {
-    setLoading(true); setError("");
-    try {
-      const prompt = buildPrompt({ sport, event, focusAreas, tone, voiceStyle, athleteName, personalNotes, sportData });
-      const res = await fetch("/api/generate", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
-      });
-      const data = await res.json();
-      const text = data.content?.map(b => b.text || "").join("") || "";
-      if (!text) throw new Error("No script returned");
-      setScript(text.trim()); setScreen("player");
-    } catch (e) { setError("Something went wrong. Please try again."); }
-    finally { setLoading(false); }
-  };
-
-  const restart = () => {
-    setScreen("setup"); setStep(0); setSport(""); setEvent(""); setFocusAreas([]);
-    setTone(""); setVoiceStyle(""); setMusic(""); setAthleteName(""); setPersonalNotes(""); setScript("");
   };
 
   const canNext = () => {
@@ -269,261 +190,417 @@ export default function App() {
     return true;
   };
 
-  const stepTitles = ["CHOOSE YOUR SPORT", "SELECT YOUR EVENT", "WHAT'S YOUR FOCUS?", "SET THE VIBE", "READY TO GO"];
+  const generate = async () => {
+    setLoading(true); setError("");
+    try {
+      const prompt = buildPrompt({ sport, event, focusAreas, tone, voiceStyle, athleteName, personalNotes, sportData });
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+      });
+      const data = await res.json();
+      const text = data.content?.map(b => b.text || "").join("") || "";
+      if (!text) throw new Error("Empty");
+      onSessionStart({ sport, event, tone, voiceStyle, music, script: text });
+    } catch (e) { setError("Something went wrong. Please try again."); }
+    finally { setLoading(false); }
+  };
+
+  const stepTitles = ["CHOOSE YOUR SPORT", "SELECT YOUR EVENT", "WHAT'S YOUR FOCUS?", "SET THE VIBE", "ALMOST THERE"];
   const stepSubs = [
     "What are you training or competing in?",
     "Pick the specific event or scenario you want to visualize.",
     "Pick up to 3 areas to lock in on.",
     "How do you want to feel during this session?",
-    "Add your name and any personal notes, then generate.",
+    "Add your name and any personal notes.",
   ];
+
+  return (
+    <div className="generate-view" key={step}>
+      <div className="gen-step-header">
+        <div className="gen-eyebrow">Step {step + 1} of {STEPS.length}</div>
+        <h2 className="gen-title">{stepTitles[step]}</h2>
+        <p className="gen-sub">{stepSubs[step]}</p>
+        <div className="gen-track">
+          {STEPS.map((_, i) => <div key={i} className={`gen-node ${i < step ? "done" : i === step ? "active" : ""}`} />)}
+        </div>
+      </div>
+
+      <div className="gen-body">
+        {step === 0 && (
+          <div className="sport-grid">
+            {Object.entries(SPORTS).map(([key, s]) => (
+              <div key={key} className={`sport-card ${sport === key ? "active" : ""}`} onClick={() => setSport(key)}>
+                <div className="sport-emoji-wrap">{s.icon}</div>
+                <div className="sport-name">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {step === 1 && sportData && (
+          <div className="pill-wrap">
+            {sportData.events.map(ev => (
+              <div key={ev} className={`pill ${event === ev ? "active" : ""}`} onClick={() => setEvent(ev)}>{ev}</div>
+            ))}
+          </div>
+        )}
+
+        {step === 2 && sportData && (
+          <div className="pill-wrap">
+            {sportData.focusAreas.map(fa => (
+              <div key={fa} className={`pill ${focusAreas.includes(fa) ? "active" : ""}`} onClick={() => toggleFocus(fa)}>{fa}</div>
+            ))}
+          </div>
+        )}
+
+        {step === 3 && (
+          <>
+            <div className="tone-grid">
+              {TONES.map(t => (
+                <div key={t.id} className={`tone-card ${tone === t.id ? "active" : ""}`}
+                  style={{ "--tone-color": t.color }} onClick={() => setTone(t.id)}>
+                  <div className="tone-name">{t.label}</div>
+                  <div className="tone-desc">{t.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div className="vibe-sub-label">VOICE STYLE</div>
+            <div className="voice-row">
+              {VOICE_STYLES.map(v => (
+                <div key={v.id} className={`voice-card ${voiceStyle === v.id ? "active" : ""}`} onClick={() => setVoiceStyle(v.id)}>
+                  <div className="voice-name">{v.label}</div>
+                  <div className="voice-desc">{v.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div className="vibe-sub-label">BACKGROUND MUSIC</div>
+            <div className="music-row">
+              {MUSIC_MOODS.map(m => (
+                <div key={m.id} className={`music-chip ${music === m.id ? "active" : ""}`} onClick={() => setMusic(m.id)}>
+                  {m.icon} {m.label}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {step === 4 && (
+          <>
+            <input className="text-input" placeholder="Your name (optional) — e.g. Malcolm"
+              value={athleteName} onChange={e => setAthleteName(e.target.value)} />
+            <textarea className="text-input textarea-input"
+              placeholder="Anything specific you want to focus on? (optional)"
+              value={personalNotes} onChange={e => setPersonalNotes(e.target.value)} />
+            {error && <div className="error-msg">{error}</div>}
+          </>
+        )}
+      </div>
+
+      <div className="gen-nav">
+        <button className="back-btn" onClick={() => setStep(s => s - 1)} style={{ visibility: step === 0 ? "hidden" : "visible" }}>← Back</button>
+        {step < 4
+          ? <button className="next-btn" disabled={!canNext()} onClick={() => setStep(s => s + 1)}>Continue →</button>
+          : <button className="next-btn gen-go" disabled={loading} onClick={generate}>
+              {loading ? "⟳ Generating..." : "✦ Generate & Play"}
+            </button>
+        }
+      </div>
+    </div>
+  );
+}
+
+// ── PLACEHOLDER VIEWS ──
+function PlaceholderView({ title, desc, icon }) {
+  return (
+    <div className="placeholder-view">
+      <div className="ph-icon">{icon}</div>
+      <h2 className="ph-title">{title}</h2>
+      <p className="ph-desc">{desc}</p>
+      <div className="ph-badge">Coming Soon</div>
+    </div>
+  );
+}
+
+// ── WELCOME SCREEN ──
+function WelcomeScreen({ onStart }) {
+  return (
+    <div className="welcome-wrap">
+      <div className="welcome-bg" />
+      <div className="welcome-content">
+        <div className="welcome-eyebrow">Mental Performance Platform</div>
+        <h1 className="welcome-headline">
+          THE FUTURE OF<br/>
+          <span className="welcome-highlight">ATHLETIC</span><br/>
+          PERFORMANCE.
+        </h1>
+        <p className="welcome-sub">
+          AI-powered visualization sessions personalized to your sport,
+          your event, and your mindset. Train your mind like you train your body.
+        </p>
+        <div className="welcome-stats">
+          <div className="welcome-stat"><div className="stat-num">4+</div><div className="stat-label">Sports</div></div>
+          <div className="stat-divider" />
+          <div className="welcome-stat"><div className="stat-num">AI</div><div className="stat-label">Personalized</div></div>
+          <div className="stat-divider" />
+          <div className="welcome-stat"><div className="stat-num">∞</div><div className="stat-label">Sessions</div></div>
+        </div>
+        <button className="welcome-cta" onClick={onStart}>GET STARTED →</button>
+        <p className="welcome-fine">No account needed. Free to use.</p>
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN APP ──
+export default function App() {
+  const [screen, setScreen] = useState("welcome");
+  const [activeNav, setActiveNav] = useState("generate");
+  const [nowPlaying, setNowPlaying] = useState(null);
+
+  const handleSessionStart = (session) => {
+    setNowPlaying(session);
+  };
+
+  const renderMain = () => {
+    if (activeNav === "generate") return <GenerateView onSessionStart={handleSessionStart} />;
+    if (activeNav === "sessions") return <PlaceholderView icon="▶" title="My Sessions" desc="Your saved visualization sessions will appear here. Sign in to save and replay your sessions anytime." />;
+    if (activeNav === "playlists") return <PlaceholderView icon="≡" title="Playlists" desc="Group your favorite sessions into playlists. Pre-meet, championship week, daily practice — organize however works for you." />;
+    if (activeNav === "teams") return <PlaceholderView icon="◈" title="My Teams" desc="Coaches can create a team and push visualization sessions directly to athletes. Athletes can join their team's group." />;
+    if (activeNav === "explore") return <PlaceholderView icon="◎" title="Explore" desc="Discover visualization sessions shared by athletes and coaches across all sports. Find what works for the best." />;
+    return null;
+  };
+
+  if (screen === "welcome") return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #050608; color: #fff; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+        .welcome-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .welcome-bg { position: absolute; inset: 0; background: #050608; }
+        .welcome-bg::before { content: ''; position: absolute; top: -30%; left: -20%; width: 700px; height: 700px; border-radius: 50%; background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 65%); }
+        .welcome-bg::after { content: ''; position: absolute; bottom: -20%; right: -10%; width: 500px; height: 500px; border-radius: 50%; background: radial-gradient(circle, rgba(59,130,246,0.07) 0%, transparent 65%); }
+        .welcome-content { position: relative; z-index: 1; max-width: 640px; padding: 3rem 2rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+        .welcome-eyebrow { font-family: 'Oswald', sans-serif; font-size: 0.62rem; letter-spacing: 0.25em; color: #3b82f6; font-weight: 400; text-transform: uppercase; }
+        .welcome-headline { font-family: 'Oswald', sans-serif; font-size: 5rem; font-weight: 700; line-height: 0.95; letter-spacing: 0.02em; text-transform: uppercase; }
+        .welcome-highlight { color: #3b82f6; }
+        .welcome-sub { font-size: 0.92rem; color: rgba(255,255,255,0.4); line-height: 1.75; font-weight: 300; max-width: 460px; }
+        .welcome-stats { display: flex; align-items: center; gap: 2rem; margin: 0.5rem 0; }
+        .welcome-stat { text-align: center; }
+        .stat-num { font-family: 'Oswald', sans-serif; font-size: 1.8rem; font-weight: 700; color: #fff; letter-spacing: 0.04em; }
+        .stat-label { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.15em; color: rgba(255,255,255,0.35); text-transform: uppercase; font-weight: 400; margin-top: 2px; }
+        .stat-divider { width: 1px; height: 36px; background: rgba(255,255,255,0.1); }
+        .welcome-cta { background: #3b82f6; border: none; border-radius: 12px; padding: 1.1rem 3rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 1.05rem; letter-spacing: 0.18em; font-weight: 600; text-transform: uppercase; cursor: pointer; transition: all 0.2s; margin-top: 0.5rem; }
+        .welcome-cta:hover { background: #2563eb; transform: translateY(-2px); box-shadow: 0 12px 40px rgba(59,130,246,0.3); }
+        .welcome-fine { font-size: 0.72rem; color: rgba(255,255,255,0.2); font-weight: 300; }
+        @media (max-width: 500px) { .welcome-headline { font-size: 3rem; } }
+      `}</style>
+      <WelcomeScreen onStart={() => setScreen("app")} />
+    </>
+  );
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        :root { --bg: #050608; --surface: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.07); --text: #fff; --muted: rgba(255,255,255,0.35); --accent: #3b82f6; }
+        :root { --bg: #050608; --sidebar-bg: #0a0b0f; --surface: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.07); --text: #fff; --muted: rgba(255,255,255,0.35); --accent: #3b82f6; }
         body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
-        .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* APP SHELL */
+        .app-shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .app-top { display: flex; flex: 1; overflow: hidden; }
 
         /* HEADER */
-        .header { display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 2rem; border-bottom: 1px solid var(--border); background: rgba(5,6,8,0.95); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 10; }
-        .logo { font-family: 'Oswald', sans-serif; font-size: 1.4rem; font-weight: 700; letter-spacing: 0.15em; }
+        .header { display: flex; align-items: center; justify-content: space-between; padding: 0.9rem 1.5rem; border-bottom: 1px solid var(--border); background: rgba(5,6,8,0.95); backdrop-filter: blur(20px); z-index: 20; flex-shrink: 0; }
+        .logo { font-family: 'Oswald', sans-serif; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.15em; }
         .logo-dot { color: var(--accent); }
+        .header-right { display: flex; align-items: center; gap: 1rem; }
+        .account-btn { display: flex; align-items: center; gap: 0.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.4rem 0.9rem; cursor: pointer; transition: all 0.2s; }
+        .account-btn:hover { border-color: rgba(255,255,255,0.2); }
+        .account-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'Oswald', sans-serif; font-size: 0.6rem; font-weight: 600; }
+        .account-label { font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
 
-        /* STEP TRACK */
-        .step-track { display: flex; align-items: center; gap: 6px; }
-        .step-node { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.1); transition: all 0.3s; }
-        .step-node.done { background: rgba(59,130,246,0.5); }
-        .step-node.active { background: #fff; width: 22px; border-radius: 3px; }
+        /* SIDEBAR */
+        .sidebar { width: 220px; flex-shrink: 0; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+        .sidebar-section { padding: 1.25rem 1rem 0.5rem; }
+        .sidebar-label { font-family: 'Oswald', sans-serif; font-size: 0.55rem; letter-spacing: 0.2em; color: rgba(255,255,255,0.2); text-transform: uppercase; font-weight: 400; padding: 0 0.5rem; margin-bottom: 0.4rem; }
+        .nav-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; border-radius: 8px; cursor: pointer; transition: all 0.18s; margin-bottom: 2px; }
+        .nav-item:hover { background: rgba(255,255,255,0.04); }
+        .nav-item.active { background: rgba(59,130,246,0.1); }
+        .nav-icon { font-size: 0.75rem; color: rgba(255,255,255,0.3); width: 16px; text-align: center; flex-shrink: 0; }
+        .nav-item.active .nav-icon { color: var(--accent); }
+        .nav-label { font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.06em; color: rgba(255,255,255,0.45); text-transform: uppercase; font-weight: 500; }
+        .nav-item.active .nav-label { color: #fff; }
+        .sidebar-divider { height: 1px; background: var(--border); margin: 0.75rem 1rem; }
+        .sport-nav-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.75rem; border-radius: 6px; cursor: pointer; transition: all 0.18s; margin-bottom: 1px; }
+        .sport-nav-item:hover { background: rgba(255,255,255,0.03); }
+        .sport-nav-icon { font-size: 0.85rem; }
+        .sport-nav-label { font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.04em; color: rgba(255,255,255,0.3); text-transform: uppercase; font-weight: 400; }
+        .sidebar-bottom { margin-top: auto; padding: 1rem; border-top: 1px solid var(--border); }
+        .upgrade-card { background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(59,130,246,0.05)); border: 1px solid rgba(59,130,246,0.2); border-radius: 10px; padding: 0.9rem; }
+        .upgrade-title { font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: #fff; margin-bottom: 0.3rem; }
+        .upgrade-desc { font-size: 0.68rem; color: rgba(255,255,255,0.3); line-height: 1.5; margin-bottom: 0.75rem; }
+        .upgrade-btn { width: 100%; padding: 0.5rem; background: var(--accent); border: none; border-radius: 6px; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .upgrade-btn:hover { background: #2563eb; }
 
-        /* MAIN */
-        .main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1.5rem; min-height: calc(100vh - 56px); }
+        /* MAIN CONTENT */
+        .main-content { flex: 1; overflow-y: auto; padding: 2rem 2.5rem; }
 
-        /* STEP CONTAINER */
-        .step-wrap { width: 100%; max-width: 600px; animation: fadeUp 0.35s ease; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+        /* GENERATE VIEW */
+        .generate-view { max-width: 580px; margin: 0 auto; animation: fadeUp 0.3s ease; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+        .gen-step-header { margin-bottom: 2rem; }
+        .gen-eyebrow { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.22em; color: var(--accent); font-weight: 400; text-transform: uppercase; margin-bottom: 0.4rem; }
+        .gen-title { font-family: 'Oswald', sans-serif; font-size: 2rem; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+        .gen-sub { font-size: 0.82rem; color: var(--muted); font-weight: 300; margin-bottom: 1.25rem; }
+        .gen-track { display: flex; gap: 5px; align-items: center; }
+        .gen-node { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.1); transition: all 0.3s; }
+        .gen-node.done { background: rgba(59,130,246,0.5); }
+        .gen-node.active { background: #fff; width: 18px; border-radius: 3px; }
+        .gen-body { margin-bottom: 2rem; }
+        .gen-nav { display: flex; justify-content: space-between; align-items: center; padding-top: 1.5rem; border-top: 1px solid var(--border); }
 
-        .step-eyebrow { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.22em; color: var(--accent); font-weight: 400; text-transform: uppercase; margin-bottom: 0.5rem; }
-        .step-title { font-family: 'Oswald', sans-serif; font-size: 2.2rem; font-weight: 700; letter-spacing: 0.04em; line-height: 1.05; margin-bottom: 0.5rem; }
-        .step-sub { font-size: 0.83rem; color: var(--muted); font-weight: 300; margin-bottom: 2rem; }
-
-        /* SPORT GRID */
+        /* SPORT CARDS */
         .sport-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-        .sport-btn {
-          background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-          padding: 1.25rem 1rem; cursor: pointer; transition: all 0.2s;
-          display: flex; align-items: center; gap: 1rem;
-        }
-        .sport-btn:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); }
-        .sport-btn.active { border-color: var(--accent); background: rgba(59,130,246,0.08); }
-        .sport-emoji-wrap { width: 50px; height: 50px; border-radius: 12px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; transition: all 0.2s; flex-shrink: 0; }
-        .sport-btn:hover .sport-emoji-wrap { background: rgba(255,255,255,0.08); }
-        .sport-btn.active .sport-emoji-wrap { background: rgba(59,130,246,0.15); }
-        .sport-info { display: flex; flex-direction: column; gap: 2px; }
-        .sport-name { font-family: 'Oswald', sans-serif; font-size: 0.9rem; letter-spacing: 0.06em; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; }
-        .sport-btn.active .sport-name { color: #fff; }
+        .sport-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.9rem; }
+        .sport-card:hover { border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); }
+        .sport-card.active { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+        .sport-emoji-wrap { width: 46px; height: 46px; border-radius: 10px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; transition: all 0.2s; flex-shrink: 0; }
+        .sport-card.active .sport-emoji-wrap { background: rgba(59,130,246,0.15); }
+        .sport-name { font-family: 'Oswald', sans-serif; font-size: 0.82rem; letter-spacing: 0.06em; color: rgba(255,255,255,0.55); font-weight: 600; text-transform: uppercase; }
+        .sport-card.active .sport-name { color: #fff; }
 
         /* PILLS */
         .pill-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
-        .pill { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.45rem 1rem; font-family: 'Oswald', sans-serif; font-size: 0.68rem; letter-spacing: 0.07em; color: var(--muted); cursor: pointer; transition: all 0.18s; text-transform: uppercase; font-weight: 400; white-space: nowrap; }
-        .pill:hover { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); }
+        .pill { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.4rem 0.9rem; font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.06em; color: var(--muted); cursor: pointer; transition: all 0.18s; text-transform: uppercase; font-weight: 400; white-space: nowrap; }
+        .pill:hover { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.7); }
         .pill.active { background: rgba(59,130,246,0.1); border-color: var(--accent); color: #93c5fd; }
 
-        /* TONE GRID */
-        .tone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1.5rem; }
-        .tone-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; cursor: pointer; transition: all 0.2s; }
-        .tone-btn:hover { border-color: rgba(255,255,255,0.15); }
-        .tone-btn.active { border-color: var(--tone-color); background: rgba(0,0,0,0.3); box-shadow: inset 0 0 30px rgba(0,0,0,0.4); }
-        .tone-name { font-family: 'Oswald', sans-serif; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: rgba(255,255,255,0.45); margin-bottom: 3px; }
-        .tone-btn.active .tone-name { color: var(--tone-color); }
-        .tone-desc { font-size: 0.68rem; color: rgba(255,255,255,0.2); font-weight: 300; }
-
-        /* VOICE ROW */
-        .voice-label { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 0.6rem; font-weight: 400; }
-        .voice-row { display: flex; gap: 8px; margin-bottom: 1.5rem; }
-        .voice-btn { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.5rem; cursor: pointer; transition: all 0.2s; text-align: center; }
-        .voice-btn:hover { border-color: rgba(255,255,255,0.15); }
-        .voice-btn.active { border-color: var(--accent); background: rgba(59,130,246,0.08); }
-        .voice-name { font-family: 'Oswald', sans-serif; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; color: rgba(255,255,255,0.4); }
-        .voice-btn.active .voice-name { color: #fff; }
-        .voice-desc { font-size: 0.62rem; color: rgba(255,255,255,0.2); margin-top: 2px; }
-
-        /* MUSIC ROW */
-        .music-row { display: flex; flex-wrap: wrap; gap: 7px; }
-        .music-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.4rem 0.9rem; font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: all 0.18s; }
-        .music-chip:hover { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); }
+        /* TONE */
+        .tone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 1.5rem; }
+        .tone-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; cursor: pointer; transition: all 0.2s; }
+        .tone-card:hover { border-color: rgba(255,255,255,0.14); }
+        .tone-card.active { border-color: var(--tone-color); background: rgba(0,0,0,0.3); }
+        .tone-name { font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: rgba(255,255,255,0.45); margin-bottom: 2px; }
+        .tone-card.active .tone-name { color: var(--tone-color); }
+        .tone-desc { font-size: 0.65rem; color: rgba(255,255,255,0.2); font-weight: 300; }
+        .vibe-sub-label { font-family: 'Oswald', sans-serif; font-size: 0.56rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 0.6rem; font-weight: 400; }
+        .voice-row { display: flex; gap: 7px; margin-bottom: 1.25rem; }
+        .voice-card { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 0.5rem; cursor: pointer; transition: all 0.2s; text-align: center; }
+        .voice-card:hover { border-color: rgba(255,255,255,0.14); }
+        .voice-card.active { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+        .voice-name { font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; color: rgba(255,255,255,0.4); }
+        .voice-card.active .voice-name { color: #fff; }
+        .voice-desc { font-size: 0.6rem; color: rgba(255,255,255,0.2); margin-top: 2px; }
+        .music-row { display: flex; flex-wrap: wrap; gap: 6px; }
+        .music-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.35rem 0.8rem; font-family: 'Oswald', sans-serif; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: all 0.18s; }
+        .music-chip:hover { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.7); }
         .music-chip.active { border-color: var(--accent); color: #93c5fd; background: rgba(59,130,246,0.08); }
 
-        /* TEXT INPUT */
-        .text-input { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; outline: none; width: 100%; transition: border-color 0.2s; margin-bottom: 1rem; }
+        /* INPUTS */
+        .text-input { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 0.9rem; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; outline: none; width: 100%; transition: border-color 0.2s; margin-bottom: 0.75rem; }
         .text-input:focus { border-color: rgba(59,130,246,0.4); }
         .text-input::placeholder { color: rgba(255,255,255,0.18); }
-        .textarea-input { min-height: 80px; resize: vertical; margin-bottom: 0; }
+        .textarea-input { min-height: 80px; resize: vertical; }
+        .error-msg { color: #f87171; font-size: 0.78rem; padding: 0.6rem 0.9rem; background: rgba(248,113,113,0.08); border-radius: 8px; border: 1px solid rgba(248,113,113,0.2); margin-top: 0.75rem; }
 
-        /* NAV */
-        .nav-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
-        .back-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 1.2rem; color: var(--muted); font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+        /* NAV BUTTONS */
+        .back-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1.1rem; color: var(--muted); font-family: 'Oswald', sans-serif; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
         .back-btn:hover { border-color: rgba(255,255,255,0.2); color: #fff; }
-        .next-btn { background: var(--accent); border: none; border-radius: 8px; padding: 0.65rem 1.8rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .next-btn { background: var(--accent); border: none; border-radius: 8px; padding: 0.6rem 1.6rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; }
         .next-btn:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
         .next-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .gen-btn { background: var(--accent); border: none; border-radius: 8px; padding: 0.65rem 1.8rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem; }
-        .gen-btn:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
-        .gen-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .spin { display: inline-block; animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .error-msg { color: #f87171; font-size: 0.78rem; padding: 0.65rem 0.9rem; background: rgba(248,113,113,0.08); border-radius: 8px; border: 1px solid rgba(248,113,113,0.2); margin-top: 1rem; }
+        .gen-go { background: linear-gradient(135deg, #1d4ed8, #3b82f6); }
 
-        /* PLAYER */
-        .player-wrap { flex: 1; min-height: calc(100vh - 56px); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-        .player-bg { position: absolute; inset: 0; background: var(--tone-bg, #050608); z-index: 0; }
-        .player-bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--tone-color) 10%, transparent), transparent 65%); }
-        .player-center { position: relative; z-index: 1; text-align: center; padding: 3rem 2rem; max-width: 560px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
-        .player-glyph { font-size: 2.5rem; color: var(--accent); }
-        .player-title { font-family: 'Oswald', sans-serif; font-size: 2.5rem; font-weight: 700; letter-spacing: 0.08em; color: var(--tone-color, #fff); }
-        .player-sub { font-size: 0.85rem; color: var(--muted); line-height: 1.7; font-weight: 300; font-style: italic; max-width: 380px; }
-        .audio-error { color: #f87171; font-size: 0.8rem; }
-        .vol-controls { width: 100%; display: flex; flex-direction: column; gap: 0.75rem; }
-        .vol-row { display: flex; align-items: center; gap: 0.75rem; }
-        .vol-label { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.15em; color: var(--muted); min-width: 50px; text-align: left; font-weight: 400; text-transform: uppercase; }
-        .vol-slider { flex: 1; accent-color: var(--tone-color, var(--accent)); cursor: pointer; }
-        .vol-pct { font-size: 0.68rem; color: var(--muted); min-width: 32px; font-family: 'Oswald', sans-serif; }
-        .begin-btn { background: var(--tone-color, var(--accent)); border: none; border-radius: 10px; padding: 0.9rem 2.5rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 1rem; letter-spacing: 0.15em; font-weight: 600; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
-        .begin-btn:hover { opacity: 0.88; transform: scale(1.02); }
-        .loader { width: 44px; height: 44px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--tone-color, var(--accent)); border-radius: 50%; animation: spin 0.8s linear infinite; }
-        .progress-bar { width: 100%; height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; }
-        .progress-fill { height: 100%; background: var(--tone-color, var(--accent)); border-radius: 2px; transition: width 0.5s linear; }
-        .wave-wrap { display: flex; align-items: center; gap: 5px; height: 36px; }
-        .wave-bar { width: 3px; background: var(--tone-color, var(--accent)); border-radius: 2px; animation: wave 0.9s ease-in-out infinite alternate; opacity: 0.85; }
-        .wave-bar.paused { animation-play-state: paused; }
-        @keyframes wave { 0% { height: 4px; } 100% { height: 32px; } }
-        .playing-status { font-family: 'Oswald', sans-serif; font-size: 0.62rem; letter-spacing: 0.25em; color: var(--muted); font-weight: 400; text-transform: uppercase; }
-        .script-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; font-style: italic; font-size: 0.83rem; line-height: 1.75; color: rgba(255,255,255,0.4); text-align: left; width: 100%; font-weight: 300; }
-        .done-script { max-height: 180px; overflow-y: auto; }
-        .playback-btns { display: flex; gap: 0.75rem; }
-        .pause-btn { background: var(--tone-color, var(--accent)); border: none; border-radius: 8px; padding: 0.7rem 1.5rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
-        .end-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.7rem 1.2rem; color: var(--muted); font-family: 'Oswald', sans-serif; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
-        .done-btns { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
-        .outline-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0.9rem 2rem; color: rgba(255,255,255,0.6); font-family: 'Oswald', sans-serif; font-size: 1rem; letter-spacing: 0.15em; font-weight: 600; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
-        .outline-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        /* PLACEHOLDER */
+        .placeholder-view { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; gap: 1rem; }
+        .ph-icon { font-size: 2.5rem; color: rgba(255,255,255,0.1); }
+        .ph-title { font-family: 'Oswald', sans-serif; font-size: 1.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+        .ph-desc { font-size: 0.85rem; color: var(--muted); max-width: 360px; line-height: 1.7; font-weight: 300; }
+        .ph-badge { font-family: 'Oswald', sans-serif; font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); border-radius: 100px; padding: 0.35rem 0.9rem; }
 
-        @media (max-width: 500px) {
-          .sport-grid { grid-template-columns: 1fr 1fr; }
-          .step-title { font-size: 1.7rem; }
-          .tone-grid { grid-template-columns: 1fr 1fr; }
+        /* NOW PLAYING BAR */
+        .now-playing-bar { flex-shrink: 0; background: rgba(10,11,15,0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border); position: relative; }
+        .np-progress { height: 2px; background: rgba(255,255,255,0.06); }
+        .np-progress-fill { height: 100%; background: var(--tone-color, var(--accent)); transition: width 0.5s linear; }
+        .np-content { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.5rem; gap: 1rem; }
+        .np-left { display: flex; align-items: center; gap: 0.9rem; flex: 1; min-width: 0; }
+        .np-icon { font-size: 1.5rem; flex-shrink: 0; }
+        .np-info { min-width: 0; }
+        .np-title { font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .np-sub { font-size: 0.62rem; color: var(--tone-color, var(--accent)); margin-top: 1px; font-family: 'Oswald', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+        .np-controls { display: flex; gap: 0.5rem; align-items: center; }
+        .np-btn { background: rgba(255,255,255,0.08); border: none; border-radius: 6px; padding: 0.4rem 0.75rem; color: #fff; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; }
+        .np-btn:hover { background: rgba(255,255,255,0.15); }
+        .np-stop { color: var(--muted); }
+        .np-right { display: flex; align-items: center; gap: 0.5rem; flex: 1; justify-content: flex-end; }
+        .np-vol-label { font-size: 0.75rem; }
+        .np-vol-slider { width: 80px; accent-color: var(--tone-color, var(--accent)); cursor: pointer; }
+
+        @media (max-width: 768px) {
+          .sidebar { display: none; }
+          .main-content { padding: 1.5rem; }
         }
       `}</style>
 
-      <div className="app">
+      <div className="app-shell">
+        {/* HEADER */}
         <header className="header">
           <div className="logo">MIND<span className="logo-dot">SET</span></div>
-          {screen === "setup" && (
-            <div className="step-track">
-              {STEPS.map((_, i) => (
-                <div key={i} className={`step-node ${i < step ? "done" : i === step ? "active" : ""}`} />
-              ))}
-            </div>
-          )}
-        </header>
-
-        {screen === "player" ? (
-          <VisualizationPlayer script={script} tone={tone} voiceStyle={voiceStyle} music={music} athleteName={athleteName} onRestart={restart} />
-        ) : (
-          <div className="main">
-            <div className="step-wrap" key={step}>
-              <div className="step-eyebrow">Step {step + 1} of {STEPS.length}</div>
-              <h2 className="step-title">{stepTitles[step]}</h2>
-              <p className="step-sub">{stepSubs[step]}</p>
-
-              {/* STEP 0 — SPORT */}
-              {step === 0 && (
-                <div className="sport-grid">
-                  {Object.entries(SPORTS).map(([key, s]) => (
-                    <div key={key} className={`sport-btn ${sport === key ? "active" : ""}`} onClick={() => setSport(key)}>
-                      <div className="sport-emoji-wrap">{s.icon}</div>
-                      <div className="sport-info">
-                        <div className="sport-name">{s.label}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* STEP 1 — EVENT */}
-              {step === 1 && sportData && (
-                <div className="pill-wrap">
-                  {sportData.events.map(ev => (
-                    <div key={ev} className={`pill ${event === ev ? "active" : ""}`} onClick={() => setEvent(ev)}>{ev}</div>
-                  ))}
-                </div>
-              )}
-
-              {/* STEP 2 — FOCUS AREAS */}
-              {step === 2 && sportData && (
-                <div className="pill-wrap">
-                  {sportData.focusAreas.map(fa => (
-                    <div key={fa} className={`pill ${focusAreas.includes(fa) ? "active" : ""}`} onClick={() => toggleFocus(fa)}>{fa}</div>
-                  ))}
-                </div>
-              )}
-
-              {/* STEP 3 — VIBE */}
-              {step === 3 && (
-                <>
-                  <div className="tone-grid">
-                    {TONES.map(t => (
-                      <div key={t.id} className={`tone-btn ${tone === t.id ? "active" : ""}`}
-                        style={{ "--tone-color": t.color }} onClick={() => setTone(t.id)}>
-                        <div className="tone-name">{t.label}</div>
-                        <div className="tone-desc">{t.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="voice-label">Voice Style</div>
-                  <div className="voice-row">
-                    {VOICE_STYLES.map(v => (
-                      <div key={v.id} className={`voice-btn ${voiceStyle === v.id ? "active" : ""}`} onClick={() => setVoiceStyle(v.id)}>
-                        <div className="voice-name">{v.label}</div>
-                        <div className="voice-desc">{v.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="voice-label">Background Music</div>
-                  <div className="music-row">
-                    {MUSIC_MOODS.map(m => (
-                      <div key={m.id} className={`music-chip ${music === m.id ? "active" : ""}`} onClick={() => setMusic(m.id)}>
-                        {m.icon} {m.label}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* STEP 4 — GENERATE */}
-              {step === 4 && (
-                <>
-                  <input className="text-input" placeholder="Your name (optional) — e.g. Malcolm" value={athleteName} onChange={e => setAthleteName(e.target.value)} />
-                  <textarea className="text-input textarea-input"
-                    placeholder={sport === "swimming" ? "Anything specific? e.g. I want to nail my underwaters and stay relaxed in the back half..." : "Anything specific you want to focus on?"}
-                    value={personalNotes} onChange={e => setPersonalNotes(e.target.value)} />
-                  {error && <div className="error-msg">{error}</div>}
-                </>
-              )}
-
-              <div className="nav-bar">
-                <button className="back-btn" onClick={() => setStep(s => s - 1)} style={{ visibility: step === 0 ? "hidden" : "visible" }}>← Back</button>
-                {step < 4 ? (
-                  <button className="next-btn" disabled={!canNext()} onClick={() => setStep(s => s + 1)}>Continue →</button>
-                ) : (
-                  <button className="gen-btn" disabled={loading} onClick={generateScript}>
-                    {loading ? <><span className="spin">⟳</span> Generating...</> : "✦ Generate"}
-                  </button>
-                )}
-              </div>
+          <div className="header-right">
+            <div className="account-btn">
+              <div className="account-avatar">M</div>
+              <span className="account-label">Account</span>
             </div>
           </div>
+        </header>
+
+        <div className="app-top">
+          {/* SIDEBAR */}
+          <nav className="sidebar">
+            <div className="sidebar-section">
+              <div className="sidebar-label">Menu</div>
+              {NAV_ITEMS.map(item => (
+                <div key={item.id} className={`nav-item ${activeNav === item.id ? "active" : ""}`}
+                  onClick={() => setActiveNav(item.id)}>
+                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-label">{item.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="sidebar-divider" />
+
+            <div className="sidebar-section">
+              <div className="sidebar-label">Sports</div>
+              {SPORTS_NAV.map(s => (
+                <div key={s.id} className="sport-nav-item" onClick={() => setActiveNav("generate")}>
+                  <span className="sport-nav-icon">{s.icon}</span>
+                  <span className="sport-nav-label">{s.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="sidebar-bottom">
+              <div className="upgrade-card">
+                <div className="upgrade-title">Go Pro</div>
+                <div className="upgrade-desc">Unlock unlimited sessions, AI voice, teams & more.</div>
+                <button className="upgrade-btn">Upgrade →</button>
+              </div>
+            </div>
+          </nav>
+
+          {/* MAIN */}
+          <main className="main-content">
+            {renderMain()}
+          </main>
+        </div>
+
+        {/* NOW PLAYING BAR */}
+        {nowPlaying && (
+          <NowPlayingBar session={nowPlaying} onClose={() => setNowPlaying(null)} />
         )}
       </div>
     </>
