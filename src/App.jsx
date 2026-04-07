@@ -108,36 +108,46 @@ function VisualizationPlayer({ script, tone, voiceStyle, music, athleteName, onR
   useEffect(() => { if (musicAudioRef.current) musicAudioRef.current.volume = musicVolume; }, [musicVolume]);
   useEffect(() => { if (voiceAudioRef.current) voiceAudioRef.current.volume = voiceVolume; }, [voiceVolume]);
 
-  const startSession = async () => {
-    setAudioError(""); setPhase("loading");
-    try {
-      const voiceId = VOICE_OPTIONS[voiceStyle]?.id || VOICE_OPTIONS.coach.id;
-      const res = await fetch("/api/generate", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "tts", text: script, voiceId }),
-      });
-      if (!res.ok) throw new Error("TTS failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.volume = voiceVolume;
-      voiceAudioRef.current = audio;
-      audio.addEventListener("timeupdate", () => { if (audio.duration) setProgress((audio.currentTime / audio.duration) * 100); });
-      audio.addEventListener("ended", () => { setPhase("done"); setProgress(100); stopMusic(); });
-      setPhase("playing"); startMusic(); audio.play();
-    } catch (e) { setAudioError("Couldn't load voiceover. Please try again."); setPhase("ready"); }
+  const startSession = () => {
+    setAudioError("");
+    if (!window.speechSynthesis) {
+      setAudioError("Your browser doesn't support voice. Try Chrome or Safari.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(script);
+    const voices = window.speechSynthesis.getVoices();
+    const maleVoice = voices.find(v => v.lang.startsWith("en") && (v.name.includes("Daniel") || v.name.includes("Alex") || v.name.includes("Tom") || v.name.includes("Fred")));
+    const femaleVoice = voices.find(v => v.lang.startsWith("en") && (v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Victoria")));
+    const defaultVoice = voices.find(v => v.lang === "en-US") || voices[0];
+    const voicePick = { coach: maleVoice, guide: femaleVoice, athlete: maleVoice };
+    const selectedVoice = voicePick[voiceStyle] || defaultVoice;
+    if (selectedVoice) utterance.voice = selectedVoice;
+    const toneSettings = { calm: { rate: 0.82, pitch: 0.95 }, fired: { rate: 1.05, pitch: 1.1 }, confident: { rate: 0.88, pitch: 1.0 }, flow: { rate: 0.78, pitch: 0.9 } };
+    const settings = toneSettings[tone] || { rate: 0.85, pitch: 1.0 };
+    utterance.rate = settings.rate;
+    utterance.pitch = settings.pitch;
+    utterance.volume = voiceVolume;
+    let wordCount = 0;
+    const totalWords = script.split(" ").length;
+    utterance.onboundary = (e) => { if (e.name === "word") { wordCount++; setProgress((wordCount / totalWords) * 100); } };
+    utterance.onend = () => { setPhase("done"); setProgress(100); stopMusic(); };
+    utterance.onerror = () => { setAudioError("Voice error. Please try again."); setPhase("ready"); stopMusic(); };
+    voiceAudioRef.current = utterance;
+    setPhase("playing");
+    startMusic();
+    window.speechSynthesis.speak(utterance);
   };
 
   const togglePause = () => {
-    if (!voiceAudioRef.current) return;
-    if (isPaused) { voiceAudioRef.current.play(); if (musicAudioRef.current) musicAudioRef.current.play(); }
-    else { voiceAudioRef.current.pause(); if (musicAudioRef.current) musicAudioRef.current.pause(); }
+    if (isPaused) { window.speechSynthesis.resume(); if (musicAudioRef.current) musicAudioRef.current.play(); }
+    else { window.speechSynthesis.pause(); if (musicAudioRef.current) musicAudioRef.current.pause(); }
     setIsPaused(!isPaused);
   };
 
-  const endSession = () => { if (voiceAudioRef.current) { voiceAudioRef.current.pause(); voiceAudioRef.current = null; } stopMusic(); setPhase("done"); setProgress(100); };
-  const replay = () => { setPhase("ready"); setProgress(0); setIsPaused(false); voiceAudioRef.current = null; };
-  useEffect(() => () => { if (voiceAudioRef.current) voiceAudioRef.current.pause(); stopMusic(); }, []);
+  const endSession = () => { window.speechSynthesis.cancel(); stopMusic(); setPhase("done"); setProgress(100); };
+  const replay = () => { window.speechSynthesis.cancel(); setPhase("ready"); setProgress(0); setIsPaused(false); voiceAudioRef.current = null; };
+  useEffect(() => () => { window.speechSynthesis.cancel(); stopMusic(); }, []);
 
   return (
     <div className="player-wrap" style={{ "--tone-color": toneData.color, "--tone-bg": toneData.bg }}>
@@ -165,12 +175,7 @@ function VisualizationPlayer({ script, tone, voiceStyle, music, athleteName, onR
           <button className="begin-btn" onClick={startSession}>▶ BEGIN SESSION</button>
         </div>
       )}
-      {phase === "loading" && (
-        <div className="player-center">
-          <div className="loader" />
-          <p className="player-sub" style={{ marginTop: "1.5rem" }}>Preparing your voiceover...</p>
-        </div>
-      )}
+
       {phase === "playing" && (
         <div className="player-center">
           <div className="progress-bar"><div className="progress-fill" style={{ width: `${progress}%` }} /></div>
