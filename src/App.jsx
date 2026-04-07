@@ -5,7 +5,10 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
-
+// Handle OAuth callback
+if (window.location.hash.includes("access_token")) {
+  supabase.auth.getSession();
+}
 const SPORTS = {
   swimming: {
     label: "Swimming", icon: "🏊",
