@@ -5,10 +5,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
-// Handle OAuth callback
-if (window.location.hash.includes("access_token")) {
-  supabase.auth.getSession();
-}
+
 const SPORTS = {
   swimming: {
     label: "Swimming", icon: "🏊",
@@ -126,7 +123,7 @@ function AuthScreen({ onAuth }) {
   const handleGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
-     options: { redirectTo: "https://mindset-app-weld.vercel.app" }
+      options: { redirectTo: window.location.origin }
     });
   };
 
@@ -544,39 +541,23 @@ export default function App() {
   const [showAccount, setShowAccount] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-useEffect(() => {
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        setUser(session.user);
-        setScreen("app");
-        setAuthChecked(true);
-      } else if (event === "SIGNED_OUT") {
-        setUser(null);
-        setScreen("welcome");
-        setAuthChecked(true);
-      } else if (event === "INITIAL_SESSION") {
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
         if (session?.user) {
           setUser(session.user);
           setScreen("app");
         }
         setAuthChecked(true);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        setUser(session.user);
-        setScreen("app");
-        setAuthChecked(true);
-      }
-      if (event === "SIGNED_OUT") {
+      } else if (event === "SIGNED_OUT") {
         setUser(null);
         setScreen("welcome");
         setAuthChecked(true);
       }
     });
+    return () => subscription.unsubscribe();
   }, []);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null); setScreen("welcome"); setShowAccount(false);
