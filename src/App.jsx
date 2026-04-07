@@ -1,4 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const SPORTS = {
   swimming: {
@@ -55,8 +61,6 @@ const NAV_ITEMS = [
   { id: "explore", icon: "◎", label: "Explore" },
 ];
 
-const SPORTS_NAV = Object.entries(SPORTS).map(([key, s]) => ({ id: key, label: s.label, icon: s.icon }));
-
 function buildPrompt({ sport, event, focusAreas, tone, voiceStyle, athleteName, personalNotes, sportData }) {
   const toneMap = {
     calm: "calm, grounded, and focused — like a still lake before dawn",
@@ -87,12 +91,120 @@ Write a 300-400 word guided visualization script. Structure it in 3 phases:
 Do NOT use headers or labels. Just flowing prose meant to be read aloud.`;
 }
 
+// ── AUTH SCREEN ──
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const handleSubmit = async () => {
+    setLoading(true); setError(""); setMessage("");
+    try {
+      if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email, password,
+          options: { data: { full_name: name } }
+        });
+        if (error) throw error;
+        setMessage("Check your email to confirm your account!");
+        setLoading(false); return;
+      }
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin }
+    });
+  };
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-bg" />
+      <div className="auth-card">
+        <div className="auth-logo">MIND<span className="auth-logo-dot">SET</span></div>
+        <div className="auth-eyebrow">Mental Performance Platform</div>
+        <h2 className="auth-title">{mode === "signin" ? "WELCOME BACK" : "GET STARTED"}</h2>
+
+        <button className="google-btn" onClick={handleGoogle}>
+          <span className="google-icon">G</span>
+          Continue with Google
+        </button>
+
+        <div className="auth-divider"><span>or</span></div>
+
+        {mode === "signup" && (
+          <input className="auth-input" placeholder="Your name" value={name}
+            onChange={e => setName(e.target.value)} />
+        )}
+        <input className="auth-input" placeholder="Email address" type="email"
+          value={email} onChange={e => setEmail(e.target.value)} />
+        <input className="auth-input" placeholder="Password" type="password"
+          value={password} onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+
+        {error && <div className="auth-error">{error}</div>}
+        {message && <div className="auth-success">{message}</div>}
+
+        <button className="auth-submit" onClick={handleSubmit} disabled={loading}>
+          {loading ? "⟳ Loading..." : mode === "signin" ? "SIGN IN" : "CREATE ACCOUNT"}
+        </button>
+
+        <div className="auth-switch">
+          {mode === "signin" ? (
+            <span>Don't have an account? <button onClick={() => { setMode("signup"); setError(""); }}>Sign up</button></span>
+          ) : (
+            <span>Already have an account? <button onClick={() => { setMode("signin"); setError(""); }}>Sign in</button></span>
+          )}
+        </div>
+
+        <button className="auth-guest" onClick={onAuth}>Continue without account →</button>
+      </div>
+    </div>
+  );
+}
+
+// ── ACCOUNT DROPDOWN ──
+function AccountDropdown({ user, onSignOut, onClose }) {
+  const initials = user?.user_metadata?.full_name
+    ? user.user_metadata.full_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+    : user?.email?.slice(0, 2).toUpperCase() || "ME";
+
+  return (
+    <div className="account-dropdown">
+      <div className="acct-header">
+        <div className="acct-avatar-lg">{initials}</div>
+        <div className="acct-info">
+          <div className="acct-name">{user?.user_metadata?.full_name || "Athlete"}</div>
+          <div className="acct-email">{user?.email}</div>
+        </div>
+      </div>
+      <div className="acct-divider" />
+      <div className="acct-plan">
+        <span className="plan-badge">FREE</span>
+        <span className="plan-text">Free Plan — 3 sessions/month</span>
+      </div>
+      <button className="acct-upgrade">⚡ Upgrade to Pro</button>
+      <div className="acct-divider" />
+      <button className="acct-signout" onClick={onSignOut}>Sign Out</button>
+    </div>
+  );
+}
+
 // ── NOW PLAYING BAR ──
 function NowPlayingBar({ session, onClose }) {
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const [musicVolume, setMusicVolume] = useState(0.3);
-  const voiceRef = useRef(null);
   const musicRef = useRef(null);
   const toneData = TONES.find(t => t.id === session.tone) || TONES[0];
   const musicData = MUSIC_MOODS.find(m => m.id === session.music);
@@ -119,7 +231,6 @@ function NowPlayingBar({ session, onClose }) {
     let wc = 0; const total = session.script.split(" ").length;
     utterance.onboundary = (e) => { if (e.name === "word") { wc++; setProgress((wc / total) * 100); } };
     utterance.onend = () => { setProgress(100); stopMusic(); };
-    voiceRef.current = utterance;
     startMusic();
     window.speechSynthesis.speak(utterance);
     return () => { window.speechSynthesis.cancel(); stopMusic(); };
@@ -142,8 +253,8 @@ function NowPlayingBar({ session, onClose }) {
         <div className="np-left">
           <div className="np-icon">{SPORTS[session.sport]?.icon || "◎"}</div>
           <div className="np-info">
-            <div className="np-title">{session.sport ? SPORTS[session.sport].label : "Visualization"} — {session.event}</div>
-            <div className="np-sub" style={{ color: toneData.color }}>{TONES.find(t => t.id === session.tone)?.label}</div>
+            <div className="np-title">{SPORTS[session.sport]?.label} — {session.event}</div>
+            <div className="np-sub" style={{ color: toneData.color }}>{toneData.label}</div>
           </div>
         </div>
         <div className="np-controls">
@@ -161,7 +272,7 @@ function NowPlayingBar({ session, onClose }) {
 }
 
 // ── GENERATE VIEW ──
-function GenerateView({ onSessionStart }) {
+function GenerateView({ onSessionStart, user }) {
   const [step, setStep] = useState(0);
   const [sport, setSport] = useState("");
   const [event, setEvent] = useState("");
@@ -169,7 +280,7 @@ function GenerateView({ onSessionStart }) {
   const [tone, setTone] = useState("");
   const [voiceStyle, setVoiceStyle] = useState("");
   const [music, setMusic] = useState("");
-  const [athleteName, setAthleteName] = useState("");
+  const [athleteName, setAthleteName] = useState(user?.user_metadata?.full_name || "");
   const [personalNotes, setPersonalNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -201,7 +312,21 @@ function GenerateView({ onSessionStart }) {
       const data = await res.json();
       const text = data.content?.map(b => b.text || "").join("") || "";
       if (!text) throw new Error("Empty");
-      onSessionStart({ sport, event, tone, voiceStyle, music, script: text });
+
+      const session = { sport, event, tone, voiceStyle, music, script: text, athleteName };
+
+      // Save to Supabase if logged in
+      if (user) {
+        await supabase.from("sessions").insert({
+          user_id: user.id,
+          sport, event, tone, voice_style: voiceStyle, music,
+          athlete_name: athleteName, script: text,
+          focus_areas: focusAreas,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      onSessionStart(session);
     } catch (e) { setError("Something went wrong. Please try again."); }
     finally { setLoading(false); }
   };
@@ -237,7 +362,6 @@ function GenerateView({ onSessionStart }) {
             ))}
           </div>
         )}
-
         {step === 1 && sportData && (
           <div className="pill-wrap">
             {sportData.events.map(ev => (
@@ -245,7 +369,6 @@ function GenerateView({ onSessionStart }) {
             ))}
           </div>
         )}
-
         {step === 2 && sportData && (
           <div className="pill-wrap">
             {sportData.focusAreas.map(fa => (
@@ -253,7 +376,6 @@ function GenerateView({ onSessionStart }) {
             ))}
           </div>
         )}
-
         {step === 3 && (
           <>
             <div className="tone-grid">
@@ -284,14 +406,14 @@ function GenerateView({ onSessionStart }) {
             </div>
           </>
         )}
-
         {step === 4 && (
           <>
-            <input className="text-input" placeholder="Your name (optional) — e.g. Malcolm"
+            <input className="text-input" placeholder="Your name (optional)"
               value={athleteName} onChange={e => setAthleteName(e.target.value)} />
             <textarea className="text-input textarea-input"
               placeholder="Anything specific you want to focus on? (optional)"
               value={personalNotes} onChange={e => setPersonalNotes(e.target.value)} />
+            {!user && <div className="auth-nudge">💡 <strong>Sign in</strong> to save this session and replay it anytime.</div>}
             {error && <div className="error-msg">{error}</div>}
           </>
         )}
@@ -310,7 +432,63 @@ function GenerateView({ onSessionStart }) {
   );
 }
 
-// ── PLACEHOLDER VIEWS ──
+// ── MY SESSIONS VIEW ──
+function SessionsView({ user, onPlay }) {
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    supabase.from("sessions").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
+      .then(({ data }) => { setSessions(data || []); setLoading(false); });
+  }, [user]);
+
+  if (!user) return (
+    <div className="placeholder-view">
+      <div className="ph-icon">▶</div>
+      <h2 className="ph-title">My Sessions</h2>
+      <p className="ph-desc">Sign in to save and replay your visualization sessions anytime.</p>
+    </div>
+  );
+
+  if (loading) return <div className="placeholder-view"><p className="ph-desc">Loading your sessions...</p></div>;
+
+  if (sessions.length === 0) return (
+    <div className="placeholder-view">
+      <div className="ph-icon">▶</div>
+      <h2 className="ph-title">No Sessions Yet</h2>
+      <p className="ph-desc">Generate your first visualization and it will be saved here automatically.</p>
+    </div>
+  );
+
+  return (
+    <div className="sessions-view">
+      <h2 className="view-title">MY SESSIONS</h2>
+      <div className="sessions-grid">
+        {sessions.map(s => {
+          const toneData = TONES.find(t => t.id === s.tone) || TONES[0];
+          return (
+            <div key={s.id} className="session-card" style={{ "--tone-color": toneData.color }}>
+              <div className="session-card-top">
+                <span className="session-sport-icon">{SPORTS[s.sport]?.icon}</span>
+                <span className="session-tone" style={{ color: toneData.color }}>{toneData.label}</span>
+              </div>
+              <div className="session-sport">{SPORTS[s.sport]?.label}</div>
+              <div className="session-event">{s.event}</div>
+              <div className="session-focus">{s.focus_areas?.join(" · ")}</div>
+              <div className="session-date">{new Date(s.created_at).toLocaleDateString()}</div>
+              <button className="session-play-btn" onClick={() => onPlay({ sport: s.sport, event: s.event, tone: s.tone, voiceStyle: s.voice_style, music: s.music, script: s.script, athleteName: s.athlete_name })}>
+                ▶ Play Again
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── PLACEHOLDER VIEW ──
 function PlaceholderView({ title, desc, icon }) {
   return (
     <div className="placeholder-view">
@@ -323,7 +501,7 @@ function PlaceholderView({ title, desc, icon }) {
 }
 
 // ── WELCOME SCREEN ──
-function WelcomeScreen({ onStart }) {
+function WelcomeScreen({ onStart, onSignIn }) {
   return (
     <div className="welcome-wrap">
       <div className="welcome-bg" />
@@ -345,8 +523,10 @@ function WelcomeScreen({ onStart }) {
           <div className="stat-divider" />
           <div className="welcome-stat"><div className="stat-num">∞</div><div className="stat-label">Sessions</div></div>
         </div>
-        <button className="welcome-cta" onClick={onStart}>GET STARTED →</button>
-        <p className="welcome-fine">No account needed. Free to use.</p>
+        <div className="welcome-btns">
+          <button className="welcome-cta" onClick={onSignIn}>SIGN IN / SIGN UP</button>
+          <button className="welcome-guest" onClick={onStart}>Try without account →</button>
+        </div>
       </div>
     </div>
   );
@@ -355,20 +535,41 @@ function WelcomeScreen({ onStart }) {
 // ── MAIN APP ──
 export default function App() {
   const [screen, setScreen] = useState("welcome");
+  const [user, setUser] = useState(null);
   const [activeNav, setActiveNav] = useState("generate");
   const [nowPlaying, setNowPlaying] = useState(null);
+  const [showAccount, setShowAccount] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  const handleSessionStart = (session) => {
-    setNowPlaying(session);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) { setUser(session.user); setScreen("app"); }
+      setAuthChecked(true);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) { setUser(session.user); setScreen("app"); }
+      else { setUser(null); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null); setScreen("welcome"); setShowAccount(false);
   };
 
+  const initials = user?.user_metadata?.full_name
+    ? user.user_metadata.full_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+    : user?.email?.slice(0, 2).toUpperCase() || "ME";
+
+  if (!authChecked) return null;
+
   const renderMain = () => {
-    if (activeNav === "generate") return <GenerateView onSessionStart={handleSessionStart} />;
-    if (activeNav === "sessions") return <PlaceholderView icon="▶" title="My Sessions" desc="Your saved visualization sessions will appear here. Sign in to save and replay your sessions anytime." />;
-    if (activeNav === "playlists") return <PlaceholderView icon="≡" title="Playlists" desc="Group your favorite sessions into playlists. Pre-meet, championship week, daily practice — organize however works for you." />;
-    if (activeNav === "teams") return <PlaceholderView icon="◈" title="My Teams" desc="Coaches can create a team and push visualization sessions directly to athletes. Athletes can join their team's group." />;
-    if (activeNav === "explore") return <PlaceholderView icon="◎" title="Explore" desc="Discover visualization sessions shared by athletes and coaches across all sports. Find what works for the best." />;
-    return null;
+    if (activeNav === "generate") return <GenerateView onSessionStart={setNowPlaying} user={user} />;
+    if (activeNav === "sessions") return <SessionsView user={user} onPlay={setNowPlaying} />;
+    if (activeNav === "playlists") return <PlaceholderView icon="≡" title="Playlists" desc="Group sessions into playlists. Pre-meet, championship week, daily practice — organize however works for you." />;
+    if (activeNav === "teams") return <PlaceholderView icon="◈" title="My Teams" desc="Coaches can create a team and push visualization sessions directly to athletes. Coming soon." />;
+    if (activeNav === "explore") return <PlaceholderView icon="◎" title="Explore" desc="Discover sessions shared by athletes and coaches across all sports. Coming soon." />;
   };
 
   if (screen === "welcome") return (
@@ -391,12 +592,51 @@ export default function App() {
         .stat-num { font-family: 'Oswald', sans-serif; font-size: 1.8rem; font-weight: 700; color: #fff; letter-spacing: 0.04em; }
         .stat-label { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.15em; color: rgba(255,255,255,0.35); text-transform: uppercase; font-weight: 400; margin-top: 2px; }
         .stat-divider { width: 1px; height: 36px; background: rgba(255,255,255,0.1); }
-        .welcome-cta { background: #3b82f6; border: none; border-radius: 12px; padding: 1.1rem 3rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 1.05rem; letter-spacing: 0.18em; font-weight: 600; text-transform: uppercase; cursor: pointer; transition: all 0.2s; margin-top: 0.5rem; }
+        .welcome-btns { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
+        .welcome-cta { background: #3b82f6; border: none; border-radius: 12px; padding: 1.1rem 3rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 1.05rem; letter-spacing: 0.18em; font-weight: 600; text-transform: uppercase; cursor: pointer; transition: all 0.2s; width: 100%; max-width: 300px; }
         .welcome-cta:hover { background: #2563eb; transform: translateY(-2px); box-shadow: 0 12px 40px rgba(59,130,246,0.3); }
-        .welcome-fine { font-size: 0.72rem; color: rgba(255,255,255,0.2); font-weight: 300; }
+        .welcome-guest { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 0.82rem; cursor: pointer; transition: color 0.2s; }
+        .welcome-guest:hover { color: rgba(255,255,255,0.6); }
         @media (max-width: 500px) { .welcome-headline { font-size: 3rem; } }
       `}</style>
-      <WelcomeScreen onStart={() => setScreen("app")} />
+      <WelcomeScreen onStart={() => setScreen("app")} onSignIn={() => setScreen("auth")} />
+    </>
+  );
+
+  if (screen === "auth") return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #050608; color: #fff; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+        .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; background: #050608; }
+        .auth-bg { position: absolute; inset: 0; }
+        .auth-bg::before { content: ''; position: absolute; top: -20%; left: -10%; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 65%); }
+        .auth-card { position: relative; z-index: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 2.5rem; width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 1rem; }
+        .auth-logo { font-family: 'Oswald', sans-serif; font-size: 1.5rem; font-weight: 700; letter-spacing: 0.15em; text-align: center; margin-bottom: 0.25rem; }
+        .auth-logo-dot { color: #3b82f6; }
+        .auth-eyebrow { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.2em; color: rgba(255,255,255,0.25); text-transform: uppercase; text-align: center; margin-top: -0.5rem; }
+        .auth-title { font-family: 'Oswald', sans-serif; font-size: 1.6rem; font-weight: 700; letter-spacing: 0.06em; text-align: center; margin-top: 0.5rem; }
+        .google-btn { display: flex; align-items: center; justify-content: center; gap: 0.75rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0.8rem; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; cursor: pointer; transition: all 0.2s; }
+        .google-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+        .google-icon { width: 20px; height: 20px; border-radius: 50%; background: #fff; color: #333; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; flex-shrink: 0; }
+        .auth-divider { display: flex; align-items: center; gap: 0.75rem; }
+        .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.08); }
+        .auth-divider span { font-size: 0.72rem; color: rgba(255,255,255,0.2); }
+        .auth-input { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.75rem 1rem; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; outline: none; width: 100%; transition: border-color 0.2s; }
+        .auth-input:focus { border-color: rgba(59,130,246,0.4); }
+        .auth-input::placeholder { color: rgba(255,255,255,0.2); }
+        .auth-error { color: #f87171; font-size: 0.78rem; padding: 0.6rem 0.9rem; background: rgba(248,113,113,0.08); border-radius: 8px; border: 1px solid rgba(248,113,113,0.2); }
+        .auth-success { color: #34d399; font-size: 0.78rem; padding: 0.6rem 0.9rem; background: rgba(52,211,153,0.08); border-radius: 8px; border: 1px solid rgba(52,211,153,0.2); }
+        .auth-submit { background: #3b82f6; border: none; border-radius: 10px; padding: 0.85rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.88rem; letter-spacing: 0.12em; font-weight: 600; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+        .auth-submit:hover:not(:disabled) { background: #2563eb; }
+        .auth-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+        .auth-switch { font-size: 0.78rem; color: rgba(255,255,255,0.3); text-align: center; }
+        .auth-switch button { background: none; border: none; color: #3b82f6; cursor: pointer; font-size: 0.78rem; }
+        .auth-guest { background: none; border: none; color: rgba(255,255,255,0.2); font-size: 0.72rem; cursor: pointer; text-align: center; transition: color 0.2s; margin-top: -0.25rem; }
+        .auth-guest:hover { color: rgba(255,255,255,0.5); }
+      `}</style>
+      <AuthScreen onAuth={() => setScreen("app")} />
     </>
   );
 
@@ -407,22 +647,31 @@ export default function App() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root { --bg: #050608; --sidebar-bg: #0a0b0f; --surface: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.07); --text: #fff; --muted: rgba(255,255,255,0.35); --accent: #3b82f6; }
         body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
-
-        /* APP SHELL */
         .app-shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         .app-top { display: flex; flex: 1; overflow: hidden; }
-
-        /* HEADER */
         .header { display: flex; align-items: center; justify-content: space-between; padding: 0.9rem 1.5rem; border-bottom: 1px solid var(--border); background: rgba(5,6,8,0.95); backdrop-filter: blur(20px); z-index: 20; flex-shrink: 0; }
         .logo { font-family: 'Oswald', sans-serif; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.15em; }
         .logo-dot { color: var(--accent); }
-        .header-right { display: flex; align-items: center; gap: 1rem; }
-        .account-btn { display: flex; align-items: center; gap: 0.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.4rem 0.9rem; cursor: pointer; transition: all 0.2s; }
+        .header-right { display: flex; align-items: center; gap: 1rem; position: relative; }
+        .account-btn { display: flex; align-items: center; gap: 0.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.35rem 0.9rem 0.35rem 0.35rem; cursor: pointer; transition: all 0.2s; }
         .account-btn:hover { border-color: rgba(255,255,255,0.2); }
-        .account-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'Oswald', sans-serif; font-size: 0.6rem; font-weight: 600; }
-        .account-label { font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
-
-        /* SIDEBAR */
+        .account-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'Oswald', sans-serif; font-size: 0.62rem; font-weight: 600; flex-shrink: 0; }
+        .account-label { font-family: 'Oswald', sans-serif; font-size: 0.62rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+        .account-dropdown { position: absolute; top: calc(100% + 10px); right: 0; background: #0f1014; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 1rem; width: 260px; z-index: 100; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .acct-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+        .acct-avatar-lg { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'Oswald', sans-serif; font-size: 0.85rem; font-weight: 600; flex-shrink: 0; }
+        .acct-name { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em; }
+        .acct-email { font-size: 0.7rem; color: var(--muted); margin-top: 1px; }
+        .acct-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 0.75rem 0; }
+        .acct-plan { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+        .plan-badge { font-family: 'Oswald', sans-serif; font-size: 0.55rem; letter-spacing: 0.12em; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 0.15rem 0.4rem; color: rgba(255,255,255,0.5); }
+        .plan-text { font-size: 0.72rem; color: var(--muted); }
+        .acct-upgrade { width: 100%; padding: 0.6rem; background: var(--accent); border: none; border-radius: 8px; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .acct-upgrade:hover { background: #2563eb; }
+        .acct-signout { width: 100%; padding: 0.6rem; background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--muted); font-family: 'Oswald', sans-serif; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+        .acct-signout:hover { border-color: #f87171; color: #f87171; }
+        .signin-btn { background: var(--accent); border: none; border-radius: 8px; padding: 0.5rem 1rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .signin-btn:hover { background: #2563eb; }
         .sidebar { width: 220px; flex-shrink: 0; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
         .sidebar-section { padding: 1.25rem 1rem 0.5rem; }
         .sidebar-label { font-family: 'Oswald', sans-serif; font-size: 0.55rem; letter-spacing: 0.2em; color: rgba(255,255,255,0.2); text-transform: uppercase; font-weight: 400; padding: 0 0.5rem; margin-bottom: 0.4rem; }
@@ -444,11 +693,7 @@ export default function App() {
         .upgrade-desc { font-size: 0.68rem; color: rgba(255,255,255,0.3); line-height: 1.5; margin-bottom: 0.75rem; }
         .upgrade-btn { width: 100%; padding: 0.5rem; background: var(--accent); border: none; border-radius: 6px; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; }
         .upgrade-btn:hover { background: #2563eb; }
-
-        /* MAIN CONTENT */
         .main-content { flex: 1; overflow-y: auto; padding: 2rem 2.5rem; }
-
-        /* GENERATE VIEW */
         .generate-view { max-width: 580px; margin: 0 auto; animation: fadeUp 0.3s ease; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
         .gen-step-header { margin-bottom: 2rem; }
@@ -461,8 +706,6 @@ export default function App() {
         .gen-node.active { background: #fff; width: 18px; border-radius: 3px; }
         .gen-body { margin-bottom: 2rem; }
         .gen-nav { display: flex; justify-content: space-between; align-items: center; padding-top: 1.5rem; border-top: 1px solid var(--border); }
-
-        /* SPORT CARDS */
         .sport-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .sport-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.9rem; }
         .sport-card:hover { border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); }
@@ -471,14 +714,10 @@ export default function App() {
         .sport-card.active .sport-emoji-wrap { background: rgba(59,130,246,0.15); }
         .sport-name { font-family: 'Oswald', sans-serif; font-size: 0.82rem; letter-spacing: 0.06em; color: rgba(255,255,255,0.55); font-weight: 600; text-transform: uppercase; }
         .sport-card.active .sport-name { color: #fff; }
-
-        /* PILLS */
         .pill-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
         .pill { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.4rem 0.9rem; font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.06em; color: var(--muted); cursor: pointer; transition: all 0.18s; text-transform: uppercase; font-weight: 400; white-space: nowrap; }
         .pill:hover { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.7); }
         .pill.active { background: rgba(59,130,246,0.1); border-color: var(--accent); color: #93c5fd; }
-
-        /* TONE */
         .tone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 1.5rem; }
         .tone-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; cursor: pointer; transition: all 0.2s; }
         .tone-card:hover { border-color: rgba(255,255,255,0.14); }
@@ -498,30 +737,38 @@ export default function App() {
         .music-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.35rem 0.8rem; font-family: 'Oswald', sans-serif; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: all 0.18s; }
         .music-chip:hover { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.7); }
         .music-chip.active { border-color: var(--accent); color: #93c5fd; background: rgba(59,130,246,0.08); }
-
-        /* INPUTS */
         .text-input { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 0.9rem; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; outline: none; width: 100%; transition: border-color 0.2s; margin-bottom: 0.75rem; }
         .text-input:focus { border-color: rgba(59,130,246,0.4); }
         .text-input::placeholder { color: rgba(255,255,255,0.18); }
         .textarea-input { min-height: 80px; resize: vertical; }
-        .error-msg { color: #f87171; font-size: 0.78rem; padding: 0.6rem 0.9rem; background: rgba(248,113,113,0.08); border-radius: 8px; border: 1px solid rgba(248,113,113,0.2); margin-top: 0.75rem; }
-
-        /* NAV BUTTONS */
+        .auth-nudge { font-size: 0.78rem; color: rgba(255,255,255,0.35); padding: 0.75rem 1rem; background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.15); border-radius: 8px; line-height: 1.5; }
+        .auth-nudge strong { color: #93c5fd; }
+        .error-msg { color: #f87171; font-size: 0.78rem; padding: 0.6rem 0.9rem; background: rgba(248,113,113,0.08); border-radius: 8px; border: 1px solid rgba(248,113,113,0.2); margin-top: 0.5rem; }
         .back-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1.1rem; color: var(--muted); font-family: 'Oswald', sans-serif; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
         .back-btn:hover { border-color: rgba(255,255,255,0.2); color: #fff; }
         .next-btn { background: var(--accent); border: none; border-radius: 8px; padding: 0.6rem 1.6rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; }
         .next-btn:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
         .next-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .gen-go { background: linear-gradient(135deg, #1d4ed8, #3b82f6); }
-
-        /* PLACEHOLDER */
         .placeholder-view { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; gap: 1rem; }
         .ph-icon { font-size: 2.5rem; color: rgba(255,255,255,0.1); }
         .ph-title { font-family: 'Oswald', sans-serif; font-size: 1.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
         .ph-desc { font-size: 0.85rem; color: var(--muted); max-width: 360px; line-height: 1.7; font-weight: 300; }
         .ph-badge { font-family: 'Oswald', sans-serif; font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); border-radius: 100px; padding: 0.35rem 0.9rem; }
-
-        /* NOW PLAYING BAR */
+        .sessions-view { max-width: 720px; }
+        .view-title { font-family: 'Oswald', sans-serif; font-size: 1.6rem; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 1.5rem; }
+        .sessions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .session-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem; transition: all 0.2s; }
+        .session-card:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); }
+        .session-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem; }
+        .session-sport-icon { font-size: 1.2rem; }
+        .session-tone { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; }
+        .session-sport { font-family: 'Oswald', sans-serif; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; }
+        .session-event { font-family: 'Oswald', sans-serif; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+        .session-focus { font-size: 0.65rem; color: rgba(255,255,255,0.2); line-height: 1.4; margin-top: 0.1rem; }
+        .session-date { font-size: 0.62rem; color: rgba(255,255,255,0.15); margin-top: auto; padding-top: 0.5rem; }
+        .session-play-btn { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); border-radius: 6px; padding: 0.45rem 0.75rem; color: #93c5fd; font-family: 'Oswald', sans-serif; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; margin-top: 0.5rem; }
+        .session-play-btn:hover { background: rgba(59,130,246,0.2); border-color: var(--accent); color: #fff; }
         .now-playing-bar { flex-shrink: 0; background: rgba(10,11,15,0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border); position: relative; }
         .np-progress { height: 2px; background: rgba(255,255,255,0.06); }
         .np-progress-fill { height: 100%; background: var(--tone-color, var(--accent)); transition: width 0.5s linear; }
@@ -538,27 +785,30 @@ export default function App() {
         .np-right { display: flex; align-items: center; gap: 0.5rem; flex: 1; justify-content: flex-end; }
         .np-vol-label { font-size: 0.75rem; }
         .np-vol-slider { width: 80px; accent-color: var(--tone-color, var(--accent)); cursor: pointer; }
-
-        @media (max-width: 768px) {
-          .sidebar { display: none; }
-          .main-content { padding: 1.5rem; }
-        }
+        @media (max-width: 768px) { .sidebar { display: none; } .main-content { padding: 1.5rem; } }
       `}</style>
 
-      <div className="app-shell">
-        {/* HEADER */}
+      <div className="app-shell" onClick={() => showAccount && setShowAccount(false)}>
         <header className="header">
           <div className="logo">MIND<span className="logo-dot">SET</span></div>
-          <div className="header-right">
-            <div className="account-btn">
-              <div className="account-avatar">M</div>
-              <span className="account-label">Account</span>
-            </div>
+          <div className="header-right" onClick={e => e.stopPropagation()}>
+            {user ? (
+              <>
+                <div className="account-btn" onClick={() => setShowAccount(s => !s)}>
+                  <div className="account-avatar">{initials}</div>
+                  <span className="account-label">{user?.user_metadata?.full_name?.split(" ")[0] || "Account"}</span>
+                </div>
+                {showAccount && (
+                  <AccountDropdown user={user} onSignOut={handleSignOut} onClose={() => setShowAccount(false)} />
+                )}
+              </>
+            ) : (
+              <button className="signin-btn" onClick={() => setScreen("auth")}>Sign In</button>
+            )}
           </div>
         </header>
 
         <div className="app-top">
-          {/* SIDEBAR */}
           <nav className="sidebar">
             <div className="sidebar-section">
               <div className="sidebar-label">Menu</div>
@@ -570,38 +820,31 @@ export default function App() {
                 </div>
               ))}
             </div>
-
             <div className="sidebar-divider" />
-
             <div className="sidebar-section">
               <div className="sidebar-label">Sports</div>
-              {SPORTS_NAV.map(s => (
-                <div key={s.id} className="sport-nav-item" onClick={() => setActiveNav("generate")}>
+              {Object.entries(SPORTS).map(([key, s]) => (
+                <div key={key} className="sport-nav-item" onClick={() => setActiveNav("generate")}>
                   <span className="sport-nav-icon">{s.icon}</span>
                   <span className="sport-nav-label">{s.label}</span>
                 </div>
               ))}
             </div>
-
             <div className="sidebar-bottom">
               <div className="upgrade-card">
-                <div className="upgrade-title">Go Pro</div>
-                <div className="upgrade-desc">Unlock unlimited sessions, AI voice, teams & more.</div>
+                <div className="upgrade-title">⚡ Go Pro</div>
+                <div className="upgrade-desc">Unlimited sessions, AI voice, teams & more.</div>
                 <button className="upgrade-btn">Upgrade →</button>
               </div>
             </div>
           </nav>
 
-          {/* MAIN */}
           <main className="main-content">
             {renderMain()}
           </main>
         </div>
 
-        {/* NOW PLAYING BAR */}
-        {nowPlaying && (
-          <NowPlayingBar session={nowPlaying} onClose={() => setNowPlaying(null)} />
-        )}
+        {nowPlaying && <NowPlayingBar session={nowPlaying} onClose={() => setNowPlaying(null)} />}
       </div>
     </>
   );
