@@ -2,29 +2,25 @@ import { useState, useEffect, useRef } from "react";
 
 const SPORTS = {
   swimming: {
-    label: "Swimming",
-    icon: "🏊",
+    label: "Swimming", icon: "🏊",
     events: ["50 Free", "100 Free", "200 Free", "100 Fly", "200 Fly", "100 Back", "200 Back", "100 Breast", "200 Breast", "200 IM", "400 IM"],
     focusAreas: ["Start & Dive", "Underwaters", "Stroke Technique", "Turns", "Finish", "Race Strategy", "Breathing Pattern", "Pacing"],
     sensoryPrompts: ["the smell of chlorine", "the cool water hitting your skin", "the echo of the natatorium", "your goggles sealing tight", "the block beneath your feet"],
   },
   track: {
-    label: "Track & Field",
-    icon: "🏃",
+    label: "Track & Field", icon: "🏃",
     events: ["100m", "200m", "400m", "800m", "1500m", "Mile", "5K", "10K", "110m Hurdles", "400m Hurdles"],
     focusAreas: ["Start", "Drive Phase", "Top Speed", "Endurance", "Kick", "Hurdle Clearance", "Mental Toughness", "Finish Line"],
     sensoryPrompts: ["the rubber track under your spikes", "the crowd noise", "your lungs burning", "the wind against your face", "the starting gun"],
   },
   football: {
-    label: "Football",
-    icon: "🏈",
+    label: "Football", icon: "🏈",
     events: ["Pre-Game", "Key Play", "Red Zone", "4th Quarter", "Championship"],
     focusAreas: ["Reading the Defense", "Route Running", "Blocking", "Throwing Motion", "Tackling", "Mental Composure", "Team Chemistry"],
     sensoryPrompts: ["the smell of the turf", "the weight of your pads", "the roar of the crowd", "the snap count", "the impact of contact"],
   },
   basketball: {
-    label: "Basketball",
-    icon: "🏀",
+    label: "Basketball", icon: "🏀",
     events: ["Pre-Game", "Clutch Moment", "Free Throws", "Championship Game", "Comeback"],
     focusAreas: ["Shooting Form", "Defense", "Ball Handling", "Reading the Court", "Clutch Performance", "Team Communication"],
     sensoryPrompts: ["the squeak of sneakers", "the weight of the ball", "the net swishing", "the hardwood under your feet", "the crowd going quiet"],
@@ -32,29 +28,32 @@ const SPORTS = {
 };
 
 const TONES = [
-  { id: "calm", label: "Calm & Focused", desc: "Peaceful, steady, in control", color: "#4a9eff", bg: "#0a1628" },
-  { id: "fired", label: "Fired Up", desc: "Intense, powerful, dominant", color: "#ff4a4a", bg: "#1a0808" },
-  { id: "confident", label: "Quiet Confidence", desc: "Assured, ready, unshakeable", color: "#a78bfa", bg: "#0d0818" },
-  { id: "flow", label: "Flow State", desc: "Effortless, automatic, present", color: "#34d399", bg: "#041a12" },
+  { id: "calm", label: "Calm & Focused", desc: "Steady, in control", color: "#3b82f6", bg: "#060e1f" },
+  { id: "fired", label: "Fired Up", desc: "Intense, dominant", color: "#f87171", bg: "#1a0808" },
+  { id: "confident", label: "Quiet Confidence", desc: "Assured, unshakeable", color: "#a78bfa", bg: "#0d0818" },
+  { id: "flow", label: "Flow State", desc: "Effortless, present", color: "#34d399", bg: "#041a12" },
 ];
 
 const MUSIC_MOODS = [
   { id: "none", label: "No Music", icon: "🔇", url: null },
   { id: "ambient", label: "Ambient", icon: "🌊", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
-  { id: "nature", label: "Nature Sounds", icon: "🌿", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { id: "nature", label: "Nature", icon: "🌿", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
   { id: "focus", label: "Deep Focus", icon: "🎯", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
 ];
+
 const VOICE_OPTIONS = {
-  coach: { id: "pNInz6obpgDQGcFmaJgB", name: "Adam" },
-  guide: { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
-  athlete: { id: "ErXwobaYiN019PkySvjV", name: "Antoni" },
+  coach: { id: "pNInz6obpgDQGcFmaJgB" },
+  guide: { id: "21m00Tcm4TlvDq8ikWAM" },
+  athlete: { id: "ErXwobaYiN019PkySvjV" },
 };
 
 const VOICE_STYLES = [
   { id: "coach", label: "Coach", desc: "Direct & motivating" },
-  { id: "guide", label: "Mindfulness Guide", desc: "Soft & grounding" },
-  { id: "athlete", label: "Athlete POV", desc: "First-person immersive" },
+  { id: "guide", label: "Guide", desc: "Soft & grounding" },
+  { id: "athlete", label: "Athlete POV", desc: "First-person" },
 ];
+
+const STEPS = ["Sport", "Event", "Focus", "Vibe", "Generate"];
 
 function buildPrompt({ sport, event, focusAreas, tone, voiceStyle, athleteName, personalNotes, sportData }) {
   const toneMap = {
@@ -79,107 +78,11 @@ Create a personalized athletic visualization script for ${athleteName || "this a
 ${personalNotes ? `- Personal notes from athlete: "${personalNotes}"` : ""}
 
 Write a 300-400 word guided visualization script. Structure it in 3 phases:
-1. Arrival (grounding & arriving at the moment) — 2-3 sentences
-2. The Performance (vivid, sensory-rich visualization of executing perfectly) — main body
-3. The Feeling (the emotional payoff, the result, how it feels) — closing 2-3 sentences
+1. Arrival — 2-3 sentences grounding the athlete
+2. The Performance — vivid, sensory-rich visualization of executing perfectly
+3. The Feeling — the emotional payoff and result
 
-Use rich sensory language. Make it feel personal, not generic. Do NOT use headers or labels in the output — just flowing prose. Write it as something to be read aloud.`;
-}
-
-function StepSport({ value, onChange }) {
-  return (
-    <div className="step-content">
-      <h2 className="step-title">What sport are you visualizing for?</h2>
-      <div className="sport-grid">
-        {Object.entries(SPORTS).map(([key, s]) => (
-          <button key={key} className={`sport-card ${value === key ? "selected" : ""}`} onClick={() => onChange(key)}>
-            <span className="sport-icon">{s.icon}</span>
-            <span className="sport-label">{s.label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function StepProfile({ sport, values, onChange }) {
-  const sportData = SPORTS[sport];
-  return (
-    <div className="step-content">
-      <h2 className="step-title">Tell us about you</h2>
-      <div className="field-group">
-        <label className="field-label">Your name (optional)</label>
-        <input className="field-input" placeholder="e.g. Alex" value={values.athleteName} onChange={e => onChange({ ...values, athleteName: e.target.value })} />
-      </div>
-      <div className="field-group">
-        <label className="field-label">Event / Scenario</label>
-        <div className="pill-grid">
-          {sportData.events.map(ev => (
-            <button key={ev} className={`pill ${values.event === ev ? "selected" : ""}`} onClick={() => onChange({ ...values, event: ev })}>{ev}</button>
-          ))}
-        </div>
-      </div>
-      <div className="field-group">
-        <label className="field-label">Focus areas <span className="hint">(pick up to 3)</span></label>
-        <div className="pill-grid">
-          {sportData.focusAreas.map(fa => {
-            const sel = values.focusAreas.includes(fa);
-            return (
-              <button key={fa} className={`pill ${sel ? "selected" : ""}`} onClick={() => {
-                if (sel) onChange({ ...values, focusAreas: values.focusAreas.filter(x => x !== fa) });
-                else if (values.focusAreas.length < 3) onChange({ ...values, focusAreas: [...values.focusAreas, fa] });
-              }}>{fa}</button>
-            );
-          })}
-        </div>
-      </div>
-      <div className="field-group">
-        <label className="field-label">Anything specific you want to visualize? <span className="hint">(optional)</span></label>
-        <textarea className="field-input field-textarea"
-          placeholder={sport === "swimming" ? "e.g. I want to nail my underwater off the walls..." : "e.g. I want to feel locked in from the first whistle..."}
-          value={values.personalNotes} onChange={e => onChange({ ...values, personalNotes: e.target.value })} />
-      </div>
-    </div>
-  );
-}
-
-function StepTone({ values, onChange }) {
-  return (
-    <div className="step-content">
-      <h2 className="step-title">Set your emotional tone</h2>
-      <p className="step-sub">How do you want to feel during this visualization?</p>
-      <div className="tone-grid">
-        {TONES.map(t => (
-          <button key={t.id} className={`tone-card ${values.tone === t.id ? "selected" : ""}`}
-            style={{ "--tone-color": t.color, "--tone-bg": t.bg }} onClick={() => onChange({ ...values, tone: t.id })}>
-            <span className="tone-label">{t.label}</span>
-            <span className="tone-desc">{t.desc}</span>
-          </button>
-        ))}
-      </div>
-      <div className="field-group" style={{ marginTop: "2rem" }}>
-        <label className="field-label">Voice style</label>
-        <div className="voice-grid">
-          {VOICE_STYLES.map(v => (
-            <button key={v.id} className={`voice-card ${values.voiceStyle === v.id ? "selected" : ""}`} onClick={() => onChange({ ...values, voiceStyle: v.id })}>
-              <span className="voice-label">{v.label}</span>
-              <span className="voice-desc">{v.desc}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="field-group" style={{ marginTop: "1.5rem" }}>
-        <label className="field-label">Background music</label>
-        <div className="music-grid">
-          {MUSIC_MOODS.map(m => (
-            <button key={m.id} className={`music-pill ${values.music === m.id ? "selected" : ""}`} onClick={() => onChange({ ...values, music: m.id })}>
-              {m.icon} {m.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+Do NOT use headers or labels. Just flowing prose meant to be read aloud.`;
 }
 
 function VisualizationPlayer({ script, tone, voiceStyle, music, athleteName, onRestart }) {
@@ -197,27 +100,20 @@ function VisualizationPlayer({ script, tone, voiceStyle, music, athleteName, onR
   const startMusic = () => {
     if (!musicData?.url) return;
     const audio = new Audio(musicData.url);
-    audio.loop = true;
-    audio.volume = musicVolume;
+    audio.loop = true; audio.volume = musicVolume;
     audio.play().catch(() => {});
     musicAudioRef.current = audio;
   };
-
-  const stopMusic = () => {
-    if (musicAudioRef.current) { musicAudioRef.current.pause(); musicAudioRef.current = null; }
-  };
-
+  const stopMusic = () => { if (musicAudioRef.current) { musicAudioRef.current.pause(); musicAudioRef.current = null; } };
   useEffect(() => { if (musicAudioRef.current) musicAudioRef.current.volume = musicVolume; }, [musicVolume]);
   useEffect(() => { if (voiceAudioRef.current) voiceAudioRef.current.volume = voiceVolume; }, [voiceVolume]);
 
   const startSession = async () => {
-    setAudioError("");
-    setPhase("loading");
+    setAudioError(""); setPhase("loading");
     try {
       const voiceId = VOICE_OPTIONS[voiceStyle]?.id || VOICE_OPTIONS.coach.id;
       const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "tts", text: script, voiceId }),
       });
       if (!res.ok) throw new Error("TTS failed");
@@ -226,111 +122,90 @@ function VisualizationPlayer({ script, tone, voiceStyle, music, athleteName, onR
       const audio = new Audio(url);
       audio.volume = voiceVolume;
       voiceAudioRef.current = audio;
-      audio.addEventListener("timeupdate", () => {
-        if (audio.duration) setProgress((audio.currentTime / audio.duration) * 100);
-      });
+      audio.addEventListener("timeupdate", () => { if (audio.duration) setProgress((audio.currentTime / audio.duration) * 100); });
       audio.addEventListener("ended", () => { setPhase("done"); setProgress(100); stopMusic(); });
-      setPhase("playing");
-      startMusic();
-      audio.play();
-    } catch (e) {
-      setAudioError("Couldn't load voiceover. Please try again.");
-      setPhase("ready");
-    }
+      setPhase("playing"); startMusic(); audio.play();
+    } catch (e) { setAudioError("Couldn't load voiceover. Please try again."); setPhase("ready"); }
   };
 
   const togglePause = () => {
     if (!voiceAudioRef.current) return;
-    if (isPaused) {
-      voiceAudioRef.current.play();
-      if (musicAudioRef.current) musicAudioRef.current.play();
-    } else {
-      voiceAudioRef.current.pause();
-      if (musicAudioRef.current) musicAudioRef.current.pause();
-    }
+    if (isPaused) { voiceAudioRef.current.play(); if (musicAudioRef.current) musicAudioRef.current.play(); }
+    else { voiceAudioRef.current.pause(); if (musicAudioRef.current) musicAudioRef.current.pause(); }
     setIsPaused(!isPaused);
   };
 
-  const endSession = () => {
-    if (voiceAudioRef.current) { voiceAudioRef.current.pause(); voiceAudioRef.current = null; }
-    stopMusic();
-    setPhase("done");
-    setProgress(100);
-  };
-
+  const endSession = () => { if (voiceAudioRef.current) { voiceAudioRef.current.pause(); voiceAudioRef.current = null; } stopMusic(); setPhase("done"); setProgress(100); };
   const replay = () => { setPhase("ready"); setProgress(0); setIsPaused(false); voiceAudioRef.current = null; };
-
   useEffect(() => () => { if (voiceAudioRef.current) voiceAudioRef.current.pause(); stopMusic(); }, []);
 
   return (
     <div className="player-wrap" style={{ "--tone-color": toneData.color, "--tone-bg": toneData.bg }}>
       <div className="player-bg" />
       {phase === "ready" && (
-        <div className="player-ready">
-          <div className="ready-icon">🎯</div>
-          <h2 className="ready-title">Ready{athleteName ? `, ${athleteName}` : ""}?</h2>
-          <p className="ready-sub">Find a quiet space. Press play, close your eyes, and let the voice guide you.</p>
+        <div className="player-center">
+          <div className="player-glyph">◎</div>
+          <h2 className="player-title">READY{athleteName ? `, ${athleteName.toUpperCase()}` : ""}?</h2>
+          <p className="player-sub">Find a quiet space. Press play, close your eyes, and let the voice guide you.</p>
           {audioError && <p className="audio-error">{audioError}</p>}
-          <div className="volume-controls">
+          <div className="vol-controls">
             <div className="vol-row">
-              <span className="vol-label">🎙️ Voice</span>
+              <span className="vol-label">VOICE</span>
               <input type="range" min="0" max="1" step="0.05" value={voiceVolume} onChange={e => setVoiceVolume(parseFloat(e.target.value))} className="vol-slider" />
               <span className="vol-pct">{Math.round(voiceVolume * 100)}%</span>
             </div>
             {music !== "none" && (
               <div className="vol-row">
-                <span className="vol-label">🎵 Music</span>
+                <span className="vol-label">MUSIC</span>
                 <input type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={e => setMusicVolume(parseFloat(e.target.value))} className="vol-slider" />
                 <span className="vol-pct">{Math.round(musicVolume * 100)}%</span>
               </div>
             )}
           </div>
-          <button className="play-btn" onClick={startSession}>▶ Begin Visualization</button>
+          <button className="begin-btn" onClick={startSession}>▶ BEGIN SESSION</button>
         </div>
       )}
       {phase === "loading" && (
-        <div className="player-ready">
-          <div className="loading-spinner" />
-          <p className="ready-sub" style={{ marginTop: "1.5rem" }}>Preparing your voiceover...</p>
+        <div className="player-center">
+          <div className="loader" />
+          <p className="player-sub" style={{ marginTop: "1.5rem" }}>Preparing your voiceover...</p>
         </div>
       )}
       {phase === "playing" && (
-        <div className="player-active">
+        <div className="player-center">
           <div className="progress-bar"><div className="progress-fill" style={{ width: `${progress}%` }} /></div>
-          <div className="now-playing">
-            <div className="sound-wave">
-              {[...Array(5)].map((_, i) => <div key={i} className={`bar ${isPaused ? "paused" : ""}`} style={{ animationDelay: `${i * 0.15}s` }} />)}
-            </div>
-            <p className="playing-label">{isPaused ? "Paused" : "Playing your visualization..."}</p>
+          <div className="wave-wrap">
+            {[...Array(7)].map((_, i) => <div key={i} className={`wave-bar ${isPaused ? "paused" : ""}`} style={{ animationDelay: `${i * 0.12}s` }} />)}
           </div>
-          <div className="script-preview"><p>{script.slice(0, 180)}...</p></div>
-          <div className="volume-controls">
+          <p className="playing-status">{isPaused ? "PAUSED" : "PLAYING"}</p>
+          <div className="script-box"><p>{script.slice(0, 200)}...</p></div>
+          <div className="vol-controls" style={{ width: "100%", maxWidth: 380 }}>
             <div className="vol-row">
-              <span className="vol-label">🎙️</span>
+              <span className="vol-label">VOICE</span>
               <input type="range" min="0" max="1" step="0.05" value={voiceVolume} onChange={e => setVoiceVolume(parseFloat(e.target.value))} className="vol-slider" />
             </div>
             {music !== "none" && (
               <div className="vol-row">
-                <span className="vol-label">🎵</span>
+                <span className="vol-label">MUSIC</span>
                 <input type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={e => setMusicVolume(parseFloat(e.target.value))} className="vol-slider" />
               </div>
             )}
           </div>
-          <div className="playback-controls">
-            <button className="ctrl-btn" onClick={togglePause}>{isPaused ? "▶ Resume" : "⏸ Pause"}</button>
-            <button className="stop-btn" onClick={endSession}>■ End</button>
+          <div className="playback-btns">
+            <button className="pause-btn" onClick={togglePause}>{isPaused ? "▶ RESUME" : "⏸ PAUSE"}</button>
+            <button className="end-btn" onClick={endSession}>■ END</button>
           </div>
         </div>
       )}
       {phase === "done" && (
-        <div className="player-done">
-          <div className="done-icon">✨</div>
-          <h2 className="done-title">Session Complete</h2>
-          <p className="done-sub">Take a breath. Carry that feeling into your performance.</p>
-          <div className="done-script"><p>{script}</p></div>
-          <div className="done-actions">
-            <button className="play-btn" onClick={replay}>↺ Replay</button>
-            <button className="secondary-btn" onClick={onRestart}>✦ New Session</button>
+        <div className="player-center">
+          <div className="player-glyph" style={{ color: toneData.color }}>✦</div>
+          <h2 className="player-title">SESSION COMPLETE</h2>
+          <p className="player-sub">Take a breath. Carry that feeling into your performance.</p>
+          <div className="script-box done-script"><p>{script}</p></div>
+          <div className="done-btns">
+            <button className="begin-btn" onClick={replay}>↺ REPLAY</button>
+            <button className="outline-btn" onClick={onRestart}>NEW SESSION</button>
           </div>
         </div>
       )}
@@ -338,173 +213,313 @@ function VisualizationPlayer({ script, tone, voiceStyle, music, athleteName, onR
   );
 }
 
-const STEPS = ["Sport", "Profile", "Tone", "Visualize"];
-
 export default function App() {
   const [step, setStep] = useState(0);
-  const [sport, setSport] = useState("swimming");
-  const [profile, setProfile] = useState({ athleteName: "", event: "", focusAreas: [], personalNotes: "" });
-  const [vibe, setVibe] = useState({ tone: "calm", voiceStyle: "coach", music: "ambient" });
+  const [sport, setSport] = useState("");
+  const [event, setEvent] = useState("");
+  const [focusAreas, setFocusAreas] = useState([]);
+  const [tone, setTone] = useState("");
+  const [voiceStyle, setVoiceStyle] = useState("");
+  const [music, setMusic] = useState("");
+  const [athleteName, setAthleteName] = useState("");
+  const [personalNotes, setPersonalNotes] = useState("");
   const [script, setScript] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [screen, setScreen] = useState("setup");
 
-  const canNext = () => {
-    if (step === 0) return !!sport;
-    if (step === 1) return !!profile.event && profile.focusAreas.length > 0;
-    if (step === 2) return !!vibe.tone;
-    return true;
+  const sportData = sport ? SPORTS[sport] : null;
+
+  const toggleFocus = (fa) => {
+    if (focusAreas.includes(fa)) setFocusAreas(f => f.filter(x => x !== fa));
+    else if (focusAreas.length < 3) setFocusAreas(f => [...f, fa]);
   };
 
   const generateScript = async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
-      const prompt = buildPrompt({ sport, event: profile.event, focusAreas: profile.focusAreas, tone: vibe.tone, voiceStyle: vibe.voiceStyle, athleteName: profile.athleteName, personalNotes: profile.personalNotes, sportData: SPORTS[sport] });
+      const prompt = buildPrompt({ sport, event, focusAreas, tone, voiceStyle, athleteName, personalNotes, sportData });
       const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
       });
       const data = await res.json();
       const text = data.content?.map(b => b.text || "").join("") || "";
       if (!text) throw new Error("No script returned");
-      setScript(text.trim());
-      setStep(3);
-    } catch (e) {
-      setError("Something went wrong generating your script. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+      setScript(text.trim()); setScreen("player");
+    } catch (e) { setError("Something went wrong. Please try again."); }
+    finally { setLoading(false); }
   };
 
-  const restart = () => { setStep(0); setSport("swimming"); setProfile({ athleteName: "", event: "", focusAreas: [], personalNotes: "" }); setVibe({ tone: "calm", voiceStyle: "coach", music: "ambient" }); setScript(""); };
+  const restart = () => {
+    setScreen("setup"); setStep(0); setSport(""); setEvent(""); setFocusAreas([]);
+    setTone(""); setVoiceStyle(""); setMusic(""); setAthleteName(""); setPersonalNotes(""); setScript("");
+  };
+
+  const canNext = () => {
+    if (step === 0) return !!sport;
+    if (step === 1) return !!event;
+    if (step === 2) return focusAreas.length > 0;
+    if (step === 3) return !!tone && !!voiceStyle && !!music;
+    return true;
+  };
+
+  const stepTitles = ["CHOOSE YOUR SPORT", "SELECT YOUR EVENT", "WHAT'S YOUR FOCUS?", "SET THE VIBE", "READY TO GO"];
+  const stepSubs = [
+    "What are you training or competing in?",
+    "Pick the specific event or scenario you want to visualize.",
+    "Pick up to 3 areas to lock in on.",
+    "How do you want to feel during this session?",
+    "Add your name and any personal notes, then generate.",
+  ];
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        :root { --bg: #08090d; --surface: #11131a; --border: rgba(255,255,255,0.08); --text: #e8eaf0; --muted: #6b7280; --accent: #4a9eff; --radius: 14px; }
+        :root { --bg: #050608; --surface: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.07); --text: #fff; --muted: rgba(255,255,255,0.35); --accent: #3b82f6; }
         body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
-        .app { min-height: 100vh; display: flex; flex-direction: column; }
-        .header { padding: 1.5rem 2rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(8,9,13,0.85); backdrop-filter: blur(12px); z-index: 10; }
-        .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.06em; }
-        .logo span { color: var(--accent); }
-        .step-indicators { display: flex; gap: 0.5rem; align-items: center; }
-        .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
-        .step-dot.active { background: var(--accent); width: 24px; border-radius: 4px; }
-        .step-dot.done { background: rgba(74,158,255,0.4); }
-        .main { flex: 1; max-width: 680px; margin: 0 auto; width: 100%; padding: 2.5rem 1.5rem 4rem; }
-        .step-content { animation: fadeUp 0.4s ease; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-        .step-title { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 0.04em; margin-bottom: 0.4rem; }
-        .step-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
-        .sport-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1.5rem; }
-        .sport-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; transition: all 0.2s; color: var(--text); }
-        .sport-card:hover { border-color: rgba(74,158,255,0.3); background: rgba(74,158,255,0.05); }
-        .sport-card.selected { border-color: var(--accent); background: rgba(74,158,255,0.1); box-shadow: 0 0 0 1px rgba(74,158,255,0.3); }
-        .sport-icon { font-size: 2rem; } .sport-label { font-size: 0.9rem; font-weight: 500; }
-        .field-group { margin-top: 1.8rem; }
-        .field-label { display: block; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem; }
-        .hint { text-transform: none; letter-spacing: 0; font-weight: 300; font-size: 0.75rem; color: rgba(107,114,128,0.7); }
-        .field-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
-        .field-input:focus { border-color: rgba(74,158,255,0.4); }
-        .field-textarea { min-height: 80px; resize: vertical; }
-        .pill-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-        .pill { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.4rem 0.9rem; font-size: 0.82rem; color: var(--muted); cursor: pointer; transition: all 0.18s; white-space: nowrap; }
-        .pill:hover { border-color: rgba(74,158,255,0.3); color: var(--text); }
-        .pill.selected { background: rgba(74,158,255,0.12); border-color: var(--accent); color: var(--accent); }
-        .tone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.9rem; margin-top: 1rem; }
-        .tone-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem; cursor: pointer; display: flex; flex-direction: column; gap: 0.3rem; background: var(--surface); transition: all 0.2s; text-align: left; }
-        .tone-card:hover, .tone-card.selected { border-color: var(--tone-color); background: var(--tone-bg); }
-        .tone-card.selected { box-shadow: 0 0 0 1px var(--tone-color); }
-        .tone-label { font-weight: 500; font-size: 0.9rem; color: var(--text); }
-        .tone-card.selected .tone-label { color: var(--tone-color); }
-        .tone-desc { font-size: 0.78rem; color: var(--muted); font-style: italic; }
-        .voice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
-        .voice-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 0.75rem; cursor: pointer; transition: all 0.2s; text-align: center; display: flex; flex-direction: column; gap: 0.25rem; }
-        .voice-card:hover, .voice-card.selected { border-color: var(--accent); background: rgba(74,158,255,0.07); }
-        .voice-label { font-size: 0.85rem; font-weight: 500; display: block; color: var(--text); }
-        .voice-desc { font-size: 0.72rem; color: var(--muted); display: block; }
-        .music-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-        .music-pill { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.45rem 1rem; font-size: 0.82rem; color: var(--muted); cursor: pointer; transition: all 0.18s; }
-        .music-pill.selected { border-color: var(--accent); color: var(--accent); background: rgba(74,158,255,0.08); }
-        .nav-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
-        .nav-back { background: none; border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 1.3rem; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 0.88rem; cursor: pointer; transition: all 0.2s; }
-        .nav-back:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
-        .nav-next { background: var(--accent); border: none; border-radius: 10px; padding: 0.7rem 1.8rem; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.92rem; font-weight: 500; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem; }
-        .nav-next:hover:not(:disabled) { background: #3a8ef0; transform: translateY(-1px); }
-        .nav-next:disabled { opacity: 0.4; cursor: not-allowed; }
+        .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* HEADER */
+        .header { display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 2rem; border-bottom: 1px solid var(--border); background: rgba(5,6,8,0.95); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 10; }
+        .logo { font-family: 'Oswald', sans-serif; font-size: 1.4rem; font-weight: 700; letter-spacing: 0.15em; }
+        .logo-dot { color: var(--accent); }
+
+        /* STEP TRACK */
+        .step-track { display: flex; align-items: center; gap: 6px; }
+        .step-node { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.1); transition: all 0.3s; }
+        .step-node.done { background: rgba(59,130,246,0.5); }
+        .step-node.active { background: #fff; width: 22px; border-radius: 3px; }
+
+        /* MAIN */
+        .main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1.5rem; min-height: calc(100vh - 56px); }
+
+        /* STEP CONTAINER */
+        .step-wrap { width: 100%; max-width: 600px; animation: fadeUp 0.35s ease; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
+        .step-eyebrow { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.22em; color: var(--accent); font-weight: 400; text-transform: uppercase; margin-bottom: 0.5rem; }
+        .step-title { font-family: 'Oswald', sans-serif; font-size: 2.2rem; font-weight: 700; letter-spacing: 0.04em; line-height: 1.05; margin-bottom: 0.5rem; }
+        .step-sub { font-size: 0.83rem; color: var(--muted); font-weight: 300; margin-bottom: 2rem; }
+
+        /* SPORT GRID */
+        .sport-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .sport-btn {
+          background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+          padding: 1.25rem 1rem; cursor: pointer; transition: all 0.2s;
+          display: flex; align-items: center; gap: 1rem;
+        }
+        .sport-btn:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); }
+        .sport-btn.active { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+        .sport-emoji-wrap { width: 50px; height: 50px; border-radius: 12px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; transition: all 0.2s; flex-shrink: 0; }
+        .sport-btn:hover .sport-emoji-wrap { background: rgba(255,255,255,0.08); }
+        .sport-btn.active .sport-emoji-wrap { background: rgba(59,130,246,0.15); }
+        .sport-info { display: flex; flex-direction: column; gap: 2px; }
+        .sport-name { font-family: 'Oswald', sans-serif; font-size: 0.9rem; letter-spacing: 0.06em; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; }
+        .sport-btn.active .sport-name { color: #fff; }
+
+        /* PILLS */
+        .pill-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pill { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.45rem 1rem; font-family: 'Oswald', sans-serif; font-size: 0.68rem; letter-spacing: 0.07em; color: var(--muted); cursor: pointer; transition: all 0.18s; text-transform: uppercase; font-weight: 400; white-space: nowrap; }
+        .pill:hover { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); }
+        .pill.active { background: rgba(59,130,246,0.1); border-color: var(--accent); color: #93c5fd; }
+
+        /* TONE GRID */
+        .tone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+        .tone-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; cursor: pointer; transition: all 0.2s; }
+        .tone-btn:hover { border-color: rgba(255,255,255,0.15); }
+        .tone-btn.active { border-color: var(--tone-color); background: rgba(0,0,0,0.3); box-shadow: inset 0 0 30px rgba(0,0,0,0.4); }
+        .tone-name { font-family: 'Oswald', sans-serif; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: rgba(255,255,255,0.45); margin-bottom: 3px; }
+        .tone-btn.active .tone-name { color: var(--tone-color); }
+        .tone-desc { font-size: 0.68rem; color: rgba(255,255,255,0.2); font-weight: 300; }
+
+        /* VOICE ROW */
+        .voice-label { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 0.6rem; font-weight: 400; }
+        .voice-row { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+        .voice-btn { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.5rem; cursor: pointer; transition: all 0.2s; text-align: center; }
+        .voice-btn:hover { border-color: rgba(255,255,255,0.15); }
+        .voice-btn.active { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+        .voice-name { font-family: 'Oswald', sans-serif; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; color: rgba(255,255,255,0.4); }
+        .voice-btn.active .voice-name { color: #fff; }
+        .voice-desc { font-size: 0.62rem; color: rgba(255,255,255,0.2); margin-top: 2px; }
+
+        /* MUSIC ROW */
+        .music-row { display: flex; flex-wrap: wrap; gap: 7px; }
+        .music-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 0.4rem 0.9rem; font-family: 'Oswald', sans-serif; font-size: 0.65rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: all 0.18s; }
+        .music-chip:hover { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); }
+        .music-chip.active { border-color: var(--accent); color: #93c5fd; background: rgba(59,130,246,0.08); }
+
+        /* TEXT INPUT */
+        .text-input { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; outline: none; width: 100%; transition: border-color 0.2s; margin-bottom: 1rem; }
+        .text-input:focus { border-color: rgba(59,130,246,0.4); }
+        .text-input::placeholder { color: rgba(255,255,255,0.18); }
+        .textarea-input { min-height: 80px; resize: vertical; margin-bottom: 0; }
+
+        /* NAV */
+        .nav-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        .back-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 1.2rem; color: var(--muted); font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+        .back-btn:hover { border-color: rgba(255,255,255,0.2); color: #fff; }
+        .next-btn { background: var(--accent); border: none; border-radius: 8px; padding: 0.65rem 1.8rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .next-btn:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
+        .next-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .gen-btn { background: var(--accent); border: none; border-radius: 8px; padding: 0.65rem 1.8rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem; }
+        .gen-btn:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
+        .gen-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .spin { display: inline-block; animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .error-msg { color: #ff6b6b; font-size: 0.82rem; margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(255,75,75,0.08); border-radius: 8px; border: 1px solid rgba(255,75,75,0.2); }
-        .audio-error { color: #ff6b6b; font-size: 0.82rem; margin-bottom: 1rem; }
-        .player-wrap { min-height: 70vh; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; border-radius: 20px; border: 1px solid rgba(255,255,255,0.06); margin-top: 1rem; }
-        .player-bg { position: absolute; inset: 0; background: var(--tone-bg, #0a1628); z-index: 0; }
-        .player-bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--tone-color) 12%, transparent), transparent 70%); }
-        .player-ready, .player-active, .player-done { position: relative; z-index: 1; text-align: center; padding: 3rem 2rem; max-width: 560px; width: 100%; }
-        .ready-icon, .done-icon { font-size: 3rem; margin-bottom: 1rem; }
-        .ready-title, .done-title { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 0.04em; margin-bottom: 0.75rem; color: var(--tone-color, var(--text)); }
-        .ready-sub, .done-sub { color: var(--muted); font-size: 0.9rem; line-height: 1.6; margin-bottom: 1.5rem; font-style: italic; }
-        .volume-controls { width: 100%; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; }
+        .error-msg { color: #f87171; font-size: 0.78rem; padding: 0.65rem 0.9rem; background: rgba(248,113,113,0.08); border-radius: 8px; border: 1px solid rgba(248,113,113,0.2); margin-top: 1rem; }
+
+        /* PLAYER */
+        .player-wrap { flex: 1; min-height: calc(100vh - 56px); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .player-bg { position: absolute; inset: 0; background: var(--tone-bg, #050608); z-index: 0; }
+        .player-bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--tone-color) 10%, transparent), transparent 65%); }
+        .player-center { position: relative; z-index: 1; text-align: center; padding: 3rem 2rem; max-width: 560px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
+        .player-glyph { font-size: 2.5rem; color: var(--accent); }
+        .player-title { font-family: 'Oswald', sans-serif; font-size: 2.5rem; font-weight: 700; letter-spacing: 0.08em; color: var(--tone-color, #fff); }
+        .player-sub { font-size: 0.85rem; color: var(--muted); line-height: 1.7; font-weight: 300; font-style: italic; max-width: 380px; }
+        .audio-error { color: #f87171; font-size: 0.8rem; }
+        .vol-controls { width: 100%; display: flex; flex-direction: column; gap: 0.75rem; }
         .vol-row { display: flex; align-items: center; gap: 0.75rem; }
-        .vol-label { font-size: 0.85rem; color: var(--muted); min-width: 70px; text-align: left; }
+        .vol-label { font-family: 'Oswald', sans-serif; font-size: 0.58rem; letter-spacing: 0.15em; color: var(--muted); min-width: 50px; text-align: left; font-weight: 400; text-transform: uppercase; }
         .vol-slider { flex: 1; accent-color: var(--tone-color, var(--accent)); cursor: pointer; }
-        .vol-pct { font-size: 0.75rem; color: var(--muted); min-width: 35px; }
-        .play-btn { background: var(--tone-color, var(--accent)); border: none; border-radius: 12px; padding: 0.9rem 2.2rem; color: #fff; font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; }
-        .play-btn:hover { transform: scale(1.03); }
-        .loading-spinner { width: 48px; height: 48px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--tone-color, var(--accent)); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
-        .player-active { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; padding: 2.5rem 2rem; }
-        .progress-bar { width: 100%; height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+        .vol-pct { font-size: 0.68rem; color: var(--muted); min-width: 32px; font-family: 'Oswald', sans-serif; }
+        .begin-btn { background: var(--tone-color, var(--accent)); border: none; border-radius: 10px; padding: 0.9rem 2.5rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 1rem; letter-spacing: 0.15em; font-weight: 600; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+        .begin-btn:hover { opacity: 0.88; transform: scale(1.02); }
+        .loader { width: 44px; height: 44px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--tone-color, var(--accent)); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .progress-bar { width: 100%; height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; }
         .progress-fill { height: 100%; background: var(--tone-color, var(--accent)); border-radius: 2px; transition: width 0.5s linear; }
-        .now-playing { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-        .playing-label { color: var(--muted); font-size: 0.85rem; font-style: italic; }
-        .sound-wave { display: flex; align-items: center; gap: 4px; height: 32px; }
-        .bar { width: 4px; background: var(--tone-color, var(--accent)); border-radius: 2px; animation: wave 1s ease-in-out infinite alternate; }
-        .bar.paused { animation-play-state: paused; }
-        @keyframes wave { 0% { height: 4px; opacity: 0.4; } 100% { height: 28px; opacity: 1; } }
-        .script-preview { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.2rem; font-style: italic; font-size: 0.85rem; line-height: 1.7; color: var(--muted); text-align: left; width: 100%; }
-        .playback-controls { display: flex; gap: 1rem; align-items: center; }
-        .ctrl-btn { background: var(--tone-color, var(--accent)); border: none; border-radius: 10px; padding: 0.7rem 1.5rem; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-        .ctrl-btn:hover { transform: scale(1.03); }
-        .stop-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 0.7rem 1.2rem; color: var(--muted); font-size: 0.85rem; cursor: pointer; font-family: 'DM Sans', sans-serif; }
-        .done-script { margin: 1.5rem 0; padding: 1.5rem; background: rgba(255,255,255,0.04); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); text-align: left; max-height: 200px; overflow-y: auto; font-style: italic; font-size: 0.88rem; line-height: 1.7; color: var(--muted); }
-        .done-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-        .secondary-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 0.9rem 2rem; color: var(--text); font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; }
-        .secondary-btn:hover { background: rgba(255,255,255,0.1); }
-        @media (max-width: 500px) { .sport-grid { grid-template-columns: repeat(2, 1fr); } .tone-grid { grid-template-columns: 1fr 1fr; } .voice-grid { grid-template-columns: 1fr; } .step-title { font-size: 1.7rem; } }
+        .wave-wrap { display: flex; align-items: center; gap: 5px; height: 36px; }
+        .wave-bar { width: 3px; background: var(--tone-color, var(--accent)); border-radius: 2px; animation: wave 0.9s ease-in-out infinite alternate; opacity: 0.85; }
+        .wave-bar.paused { animation-play-state: paused; }
+        @keyframes wave { 0% { height: 4px; } 100% { height: 32px; } }
+        .playing-status { font-family: 'Oswald', sans-serif; font-size: 0.62rem; letter-spacing: 0.25em; color: var(--muted); font-weight: 400; text-transform: uppercase; }
+        .script-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; font-style: italic; font-size: 0.83rem; line-height: 1.75; color: rgba(255,255,255,0.4); text-align: left; width: 100%; font-weight: 300; }
+        .done-script { max-height: 180px; overflow-y: auto; }
+        .playback-btns { display: flex; gap: 0.75rem; }
+        .pause-btn { background: var(--tone-color, var(--accent)); border: none; border-radius: 8px; padding: 0.7rem 1.5rem; color: #fff; font-family: 'Oswald', sans-serif; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+        .end-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.7rem 1.2rem; color: var(--muted); font-family: 'Oswald', sans-serif; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
+        .done-btns { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+        .outline-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0.9rem 2rem; color: rgba(255,255,255,0.6); font-family: 'Oswald', sans-serif; font-size: 1rem; letter-spacing: 0.15em; font-weight: 600; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+        .outline-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+        @media (max-width: 500px) {
+          .sport-grid { grid-template-columns: 1fr 1fr; }
+          .step-title { font-size: 1.7rem; }
+          .tone-grid { grid-template-columns: 1fr 1fr; }
+        }
       `}</style>
+
       <div className="app">
         <header className="header">
-          <div className="logo">MIND<span>SET</span></div>
-          {step < 3 && (
-            <div className="step-indicators">
-              {STEPS.slice(0, 3).map((_, i) => <div key={i} className={`step-dot ${i === step ? "active" : i < step ? "done" : ""}`} />)}
+          <div className="logo">MIND<span className="logo-dot">SET</span></div>
+          {screen === "setup" && (
+            <div className="step-track">
+              {STEPS.map((_, i) => (
+                <div key={i} className={`step-node ${i < step ? "done" : i === step ? "active" : ""}`} />
+              ))}
             </div>
           )}
         </header>
-        <main className="main">
-          {step === 0 && <StepSport value={sport} onChange={setSport} />}
-          {step === 1 && <StepProfile sport={sport} values={profile} onChange={setProfile} />}
-          {step === 2 && <StepTone values={vibe} onChange={setVibe} />}
-          {step === 3 && script && <VisualizationPlayer script={script} tone={vibe.tone} voiceStyle={vibe.voiceStyle} music={vibe.music} athleteName={profile.athleteName} onRestart={restart} />}
-          {step < 3 && (
-            <>
-              {error && <div className="error-msg">{error}</div>}
+
+        {screen === "player" ? (
+          <VisualizationPlayer script={script} tone={tone} voiceStyle={voiceStyle} music={music} athleteName={athleteName} onRestart={restart} />
+        ) : (
+          <div className="main">
+            <div className="step-wrap" key={step}>
+              <div className="step-eyebrow">Step {step + 1} of {STEPS.length}</div>
+              <h2 className="step-title">{stepTitles[step]}</h2>
+              <p className="step-sub">{stepSubs[step]}</p>
+
+              {/* STEP 0 — SPORT */}
+              {step === 0 && (
+                <div className="sport-grid">
+                  {Object.entries(SPORTS).map(([key, s]) => (
+                    <div key={key} className={`sport-btn ${sport === key ? "active" : ""}`} onClick={() => setSport(key)}>
+                      <div className="sport-emoji-wrap">{s.icon}</div>
+                      <div className="sport-info">
+                        <div className="sport-name">{s.label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* STEP 1 — EVENT */}
+              {step === 1 && sportData && (
+                <div className="pill-wrap">
+                  {sportData.events.map(ev => (
+                    <div key={ev} className={`pill ${event === ev ? "active" : ""}`} onClick={() => setEvent(ev)}>{ev}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* STEP 2 — FOCUS AREAS */}
+              {step === 2 && sportData && (
+                <div className="pill-wrap">
+                  {sportData.focusAreas.map(fa => (
+                    <div key={fa} className={`pill ${focusAreas.includes(fa) ? "active" : ""}`} onClick={() => toggleFocus(fa)}>{fa}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* STEP 3 — VIBE */}
+              {step === 3 && (
+                <>
+                  <div className="tone-grid">
+                    {TONES.map(t => (
+                      <div key={t.id} className={`tone-btn ${tone === t.id ? "active" : ""}`}
+                        style={{ "--tone-color": t.color }} onClick={() => setTone(t.id)}>
+                        <div className="tone-name">{t.label}</div>
+                        <div className="tone-desc">{t.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="voice-label">Voice Style</div>
+                  <div className="voice-row">
+                    {VOICE_STYLES.map(v => (
+                      <div key={v.id} className={`voice-btn ${voiceStyle === v.id ? "active" : ""}`} onClick={() => setVoiceStyle(v.id)}>
+                        <div className="voice-name">{v.label}</div>
+                        <div className="voice-desc">{v.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="voice-label">Background Music</div>
+                  <div className="music-row">
+                    {MUSIC_MOODS.map(m => (
+                      <div key={m.id} className={`music-chip ${music === m.id ? "active" : ""}`} onClick={() => setMusic(m.id)}>
+                        {m.icon} {m.label}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* STEP 4 — GENERATE */}
+              {step === 4 && (
+                <>
+                  <input className="text-input" placeholder="Your name (optional) — e.g. Malcolm" value={athleteName} onChange={e => setAthleteName(e.target.value)} />
+                  <textarea className="text-input textarea-input"
+                    placeholder={sport === "swimming" ? "Anything specific? e.g. I want to nail my underwaters and stay relaxed in the back half..." : "Anything specific you want to focus on?"}
+                    value={personalNotes} onChange={e => setPersonalNotes(e.target.value)} />
+                  {error && <div className="error-msg">{error}</div>}
+                </>
+              )}
+
               <div className="nav-bar">
-                <button className="nav-back" onClick={() => setStep(s => s - 1)} style={{ visibility: step === 0 ? "hidden" : "visible" }}>← Back</button>
-                {step < 2 ? (
-                  <button className="nav-next" disabled={!canNext()} onClick={() => setStep(s => s + 1)}>Continue →</button>
+                <button className="back-btn" onClick={() => setStep(s => s - 1)} style={{ visibility: step === 0 ? "hidden" : "visible" }}>← Back</button>
+                {step < 4 ? (
+                  <button className="next-btn" disabled={!canNext()} onClick={() => setStep(s => s + 1)}>Continue →</button>
                 ) : (
-                  <button className="nav-next" disabled={loading || !canNext()} onClick={generateScript}>
-                    {loading ? <><span className="spin">⟳</span> Generating…</> : "✦ Generate My Visualization"}
+                  <button className="gen-btn" disabled={loading} onClick={generateScript}>
+                    {loading ? <><span className="spin">⟳</span> Generating...</> : "✦ Generate"}
                   </button>
                 )}
               </div>
-            </>
-          )}
-        </main>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
