@@ -541,15 +541,22 @@ export default function App() {
   const [showAccount, setShowAccount] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setUser(session.user); setScreen("app"); }
-      setAuthChecked(true);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) { setUser(session.user); setScreen("app"); }
-      else { setUser(null); }
-    });
+ supabase.auth.getSession().then(({ data: { session } }) => {
+  if (session?.user) { setUser(session.user); setScreen("app"); }
+  setAuthChecked(true);
+});
+const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+  if (event === "SIGNED_IN" && session?.user) {
+    setUser(session.user);
+    setScreen("app");
+    setAuthChecked(true);
+  }
+  if (event === "SIGNED_OUT") {
+    setUser(null);
+    setScreen("welcome");
+    setAuthChecked(true);
+  }
+});
     return () => subscription.unsubscribe();
   }, []);
 
