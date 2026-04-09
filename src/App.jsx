@@ -193,7 +193,7 @@ function AccountDropdown({ user, onSignOut, onClose }) {
         <span className="plan-badge">FREE</span>
         <span className="plan-text">Free Plan — 3 sessions/month</span>
       </div>
-      <button className="acct-upgrade">⚡ Upgrade to Pro</button>
+      <button className="acct-upgrade" onClick={handleUpgrade}>⚡ Upgrade to Pro</button>
       <div className="acct-divider" />
       <button className="acct-signout" onClick={onSignOut}>Sign Out</button>
     </div>
@@ -272,7 +272,7 @@ function NowPlayingBar({ session, onClose }) {
 }
 
 // ── GENERATE VIEW ──
-function GenerateView({ onSessionStart, user }) {
+function GenerateView({ onSessionStart, user, isPro }) {
   const [step, setStep] = useState(0);
   const [sport, setSport] = useState("");
   const [event, setEvent] = useState("");
@@ -414,6 +414,8 @@ function GenerateView({ onSessionStart, user }) {
               placeholder="Anything specific you want to focus on? (optional)"
               value={personalNotes} onChange={e => setPersonalNotes(e.target.value)} />
             {!user && <div className="auth-nudge">💡 <strong>Sign in</strong> to save this session and replay it anytime.</div>}
+            {user && !isPro && <div className="auth-nudge">⚡ <strong>Go Pro</strong> to unlock AI voice, unlimited sessions and all sports.</div>}
+            {isPro && <div className="auth-nudge pro-badge">✦ <strong>Pro</strong> — AI voice and all features unlocked!</div>}
             {error && <div className="error-msg">{error}</div>}
           </>
         )}
@@ -536,10 +538,20 @@ function WelcomeScreen({ onStart, onSignIn }) {
 export default function App() {
   const [screen, setScreen] = useState("welcome");
   const [user, setUser] = useState(null);
+  const [isPro, setIsPro] = useState(false);
   const [activeNav, setActiveNav] = useState("generate");
   const [nowPlaying, setNowPlaying] = useState(null);
   const [showAccount, setShowAccount] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    // Check for Stripe redirect
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "true") {
+      setIsPro(true);
+      window.history.replaceState({}, "", "/");
+    }
+  }, []);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -547,6 +559,9 @@ export default function App() {
         if (session?.user) {
           setUser(session.user);
           setScreen("app");
+          // Check if user is Pro
+          supabase.from("profiles").select("is_pro").eq("user_id", session.user.id).single()
+            .then(({ data }) => { if (data?.is_pro) setIsPro(true); });
         }
         setAuthChecked(true);
       } else if (event === "SIGNED_OUT") {
@@ -560,7 +575,20 @@ export default function App() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    setUser(null); setScreen("welcome"); setShowAccount(false);
+    setUser(null); setScreen("welcome"); setShowAccount(false); setIsPro(false);
+  };
+
+  const handleUpgrade = async () => {
+    if (!user) { setScreen("auth"); return; }
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "create-checkout", userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (e) { alert("Something went wrong. Please try again."); }
   };
 
   const initials = user?.user_metadata?.full_name
@@ -570,7 +598,7 @@ export default function App() {
   if (!authChecked) return null;
 
   const renderMain = () => {
-    if (activeNav === "generate") return <GenerateView onSessionStart={setNowPlaying} user={user} />;
+    if (activeNav === "generate") return <GenerateView onSessionStart={setNowPlaying} user={user} isPro={isPro} />;
     if (activeNav === "sessions") return <SessionsView user={user} onPlay={setNowPlaying} />;
     if (activeNav === "playlists") return <PlaceholderView icon="≡" title="Playlists" desc="Group sessions into playlists. Pre-meet, championship week, daily practice — organize however works for you." />;
     if (activeNav === "teams") return <PlaceholderView icon="◈" title="My Teams" desc="Coaches can create a team and push visualization sessions directly to athletes. Coming soon." />;
@@ -748,6 +776,8 @@ export default function App() {
         .textarea-input { min-height: 80px; resize: vertical; }
         .auth-nudge { font-size: 0.78rem; color: rgba(255,255,255,0.35); padding: 0.75rem 1rem; background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.15); border-radius: 8px; line-height: 1.5; }
         .auth-nudge strong { color: #93c5fd; }
+        .pro-badge { background: rgba(52,211,153,0.08); border-color: rgba(52,211,153,0.2); color: rgba(52,211,153,0.8); }
+        .pro-badge strong { color: #34d399; }
         .error-msg { color: #f87171; font-size: 0.78rem; padding: 0.6rem 0.9rem; background: rgba(248,113,113,0.08); border-radius: 8px; border: 1px solid rgba(248,113,113,0.2); margin-top: 0.5rem; }
         .back-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1.1rem; color: var(--muted); font-family: 'Oswald', sans-serif; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
         .back-btn:hover { border-color: rgba(255,255,255,0.2); color: #fff; }
@@ -839,7 +869,7 @@ export default function App() {
               <div className="upgrade-card">
                 <div className="upgrade-title">⚡ Go Pro</div>
                 <div className="upgrade-desc">Unlimited sessions, AI voice, teams & more.</div>
-                <button className="upgrade-btn">Upgrade →</button>
+                <button className="upgrade-btn" onClick={handleUpgrade}>Upgrade →</button>
               </div>
             </div>
           </nav>
