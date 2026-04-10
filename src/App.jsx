@@ -578,8 +578,7 @@ export default function App() {
     setUser(null); setScreen("welcome"); setShowAccount(false); setIsPro(false);
   };
 
- const handleUpgrade = async () => {
-    alert("Upgrade clicked!");
+const handleUpgrade = async () => {
     if (!user) { setScreen("auth"); return; }
     try {
       const res = await fetch("/api/generate", {
