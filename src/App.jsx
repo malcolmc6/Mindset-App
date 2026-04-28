@@ -218,10 +218,40 @@ function NowPlayingBar({ session, onClose, isPro }) {
   };
   const stopMusic = () => { if (musicRef.current) { musicRef.current.pause(); musicRef.current = null; } };
 
-  useEffect(() => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(session.script);
+ useEffect(() => {
+    if (isPro) {
+      // ElevenLabs AI voice for Pro users
+      const voiceId = session.voiceStyle === "guide" ? "21m00Tcm4TlvDq8ikWAM"
+        : session.voiceStyle === "athlete" ? "ErXwobaYiN019PkySvjV"
+        : "pNInz6obpgDQGcFmaJgB";
+      fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "tts", text: session.script, voiceId }),
+      }).then(r => r.blob()).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.volume = 0.9;
+        musicRef.current = audio;
+        startMusic();
+        audio.play();
+        const totalDuration = session.script.split(" ").length * 280;
+        const interval = setInterval(() => {
+          setProgress(p => { if (p >= 100) { clearInterval(interval); setProgress(100); stopMusic(); return 100; } return p + (100 / (totalDuration / 100)); });
+        }, 100);
+      }).catch(() => {
+        // Fallback to browser voice if ElevenLabs fails
+        startBrowserVoice();
+      });
+      return () => { if (musicRef.current) { musicRef.current.pause(); musicRef.current = null; } stopMusic(); };
+    } else {
+      startBrowserVoice();
+    }
+
+    function startBrowserVoice() {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(session.script);
     const voices = window.speechSynthesis.getVoices();
     const voice = voices.find(v => v.lang.startsWith("en")) || voices[0];
     if (voice) utterance.voice = voice;
