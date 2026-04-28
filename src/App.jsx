@@ -909,7 +909,7 @@ const handleUpgrade = async () => {
           </main>
         </div>
 
-        {nowPlaying && <NowPlayingBar session={nowPlaying} onClose={() => setNowPlaying(null)} />}
+     {nowPlaying && <NowPlayingBar session={nowPlaying} onClose={() => setNowPlaying(null)} isPro={isPro} />}
       </div>
     </>
   );
