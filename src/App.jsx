@@ -263,9 +263,9 @@ function NowPlayingBar({ session, onClose, isPro }) {
     utterance.onend = () => { setProgress(100); stopMusic(); };
     startMusic();
     window.speechSynthesis.speak(utterance);
-    return () => { window.speechSynthesis.cancel(); stopMusic(); };
-  }, [session]);
-
+   return () => { window.speechSynthesis.cancel(); stopMusic(); };
+    }
+  }, [session, isPro]);
   useEffect(() => { if (musicRef.current) musicRef.current.volume = musicVolume; }, [musicVolume]);
 
   const togglePause = () => {
