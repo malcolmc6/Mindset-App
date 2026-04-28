@@ -201,7 +201,7 @@ function AccountDropdown({ user, onSignOut, onClose }) {
 }
 
 // ── NOW PLAYING BAR ──
-function NowPlayingBar({ session, onClose }) {
+function NowPlayingBar({ session, onClose, isPro }) {
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const [musicVolume, setMusicVolume] = useState(0.3);
